@@ -1,0 +1,2 @@
+# Ingore everything under build directories
+**/build/*
