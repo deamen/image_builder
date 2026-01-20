@@ -4,7 +4,7 @@ set -euxo pipefail
 # Setup proxy if exists
 [ -f /etc/profile.d/proxy.sh ] && source /etc/profile.d/proxy.sh
 
-### 
+###
 # upgrade all packages.
 # --available: This flag instructs apk to upgrade packages only if newer versions are available.
 # Without this flag, apk might attempt to reinstall packages even if they are already at the latest version.
