@@ -6,24 +6,11 @@
 <down><wait><down><wait><down><wait><down><wait><enter><wait30s>
 root<enter><wait>
 ifconfig 'eth0' up && udhcpc -i 'eth0'<enter><wait5s>
-#setup-proxy -q http://example.com:3128<enter><wait>
-#setup-alpine -q<enter><wait>
-## Select US keyboard layout.
-#us<enter>
-#us<enter><wait10s>
-#setup-timezone -z Australia/Melbourne<enter><wait>
-#setup-sshd -c openssh<enter><wait>
-#source /etc/profile.d/proxy.sh && setup-disk -m sys<enter>
-## Choose sda.
-#<enter>
-#y<enter><wait15s>
 wget http://{{ .HTTPIP }}:{{ .HTTPPort }}/alpine_answerfile.cfg<enter><wait>
 setup-alpine -f alpine_answerfile.cfg<enter><wait10s>
 # root password
 ${build_password}<enter><wait>
 ${build_password}<enter><wait10s>
-# Don't create user
-# <enter><wait>
 # Erase disk
 y<enter><wait15s>
 ## Mount installation partition and change SSHD config.
@@ -34,9 +21,5 @@ echo 'PermitRootLogin yes' >> /mnt/etc/ssh/sshd_config<enter><wait>
 [ -f /etc/profile.d/proxy.sh ] && . /etc/profile.d/proxy.sh<enter><wait>
 apk add efibootmgr<enter><wait15s>
 efibootmgr -o 0002,0000,0001<enter><wait>
-# Reboot and setup QEMU Guest Agent so Packer can connect with SSH.
+# Reboot for provision
 reboot<enter><wait30s>
-# root<enter><wait>
-# Set root password.
-# echo 'root:${build_password}' | chpasswd<enter>
-# apk update<enter><wait5s>
