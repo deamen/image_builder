@@ -1,2 +1,6 @@
 # Ingore everything under build directories
 **/build/*
+.terraform*
+terraform.tfstate*
+
+qemu/alpine/tests/provisioner_credentials.auto.tfvars
