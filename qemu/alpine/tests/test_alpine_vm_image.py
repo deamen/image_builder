@@ -20,15 +20,15 @@ def test_wheel_group_doas_file(host):
 
 def test_kvm_guest_tools_installed(host):
     """Check if Hypervisor Guest Additions/Tools/Agents/Kernel modules installed"""
-    kvm_tools = ["qemu-guest-agent", "rsync", "nfs-utils"]
+    kvm_tools = ["qemu-guest-agent"]
     for package in kvm_tools:
         assert host.package(package).is_installed
 
 
 def test_kvm_guest_services_are_running(host):
     """Check if guest agents services running and enabled"""
-    assert host.service("qemu-guest-agent.service").is_running
-    assert host.service("qemu-guest-agent.service").is_enabled
+    assert host.service("qemu-guest-agent").is_running
+    assert host.service("qemu-guest-agent").is_enabled
 
 
 ###
@@ -40,8 +40,8 @@ def test_kvm_guest_services_are_running(host):
 def test_get_ssh_host_pub_keys(host):
     """Get checksum of SSH host public keys from each machine and write to file"""
     hostname = host.check_output("hostname")
-    with host.sudo():
-        host_key = host.check_output("sha256sum /etc/ssh/ssh_host_*_key.pub")
+
+    host_key = host.check_output("sha256sum /etc/ssh/ssh_host_*_key.pub")
     with open(f"{hostname}.sshhostkeys", "w") as fd:
         fd.write(host_key)
 

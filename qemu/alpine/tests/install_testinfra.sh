@@ -39,7 +39,7 @@ if [[ ! -d "$VENV_PATH" ]]; then
     source "${VENV_PATH}/bin/activate"
     echo "Installing testinfra ..."
     pip install --upgrade pip
-    pip install testinfra
+    pip install wheel paramiko pytest-testinfra pytest-dependency
     echo "Setup complete. Virtual environment is ready at $VENV_PATH."
 else
     echo "Virtual environment already exists at $VENV_PATH – nothing to do."

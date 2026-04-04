@@ -33,9 +33,9 @@ if [[ -z "$image_path" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# 2️⃣  Generate a random password (20 characters, mixed case, numbers, symbols)
+# 2️⃣  Generate a random password (20 characters, mixed case, numbers)
 # ------------------------------------------------------------------
-PASSWORD=$(pwgen --capitalize --numerals --symbols 20 1)
+PASSWORD=$(pwgen --capitalize --numerals 20 1)
 
 # ------------------------------------------------------------------
 # 3️⃣  Create a SHA‑512 hash of the password.
