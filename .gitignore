@@ -1,6 +1,22 @@
 # Ingore everything under build directories
 **/build/*
+
+# Ignore Terraform files
 .terraform*
 terraform.tfstate*
-
 qemu/alpine/tests/provisioner_credentials.auto.tfvars
+
+# Ignore Packer variable override files, those are user specific
+*_overrides.auto.pkrvars.hcl
+
+# Ignore python virtual environment
+*_py_venv
+
+# Ignore test result files
+*.sshhostkeys
+
+# Ignore python cache files
+__pycache__
+
+# Ignore SSH config file
+qemu/alpine/tests/ssh_config

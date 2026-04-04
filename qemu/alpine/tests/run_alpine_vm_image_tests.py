@@ -99,7 +99,11 @@ def main() -> None:
     hosts = build_host_strings(ip_list, user="ansible.svc", password=password)
     # 5️⃣ Assemble the pytest‑testinfra command
     hosts_arg = ",".join(hosts)
-    cmd = ["py.test", f"--hosts={hosts_arg}"]
+    cmd = [
+        "py.test",
+        f"--hosts={hosts_arg}",
+        "--ssh-config=./ssh_config",
+    ]
     if args.dry_run:
         print("Generated command:")
         print(" ".join(cmd))
