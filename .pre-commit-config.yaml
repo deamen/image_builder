@@ -6,12 +6,10 @@ repos:
     - id: check-yaml
     - id: check-added-large-files
     - id: detect-private-key
-      exclude: collections/ansible_collections/deamen/certificate/plugins/modules/deploy_certificate.py
     - id: end-of-file-fixer
     - id: forbid-submodules
     - id: check-executables-have-shebangs
     - id: check-shebang-scripts-are-executable
-      exclude: collections/ansible_collections/deamen/certificate/plugins/modules/
     - id: check-merge-conflict
 
 - repo: https://github.com/deamen/pre-commit-hooks

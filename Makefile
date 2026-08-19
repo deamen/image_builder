@@ -8,8 +8,24 @@ else
 PACKER=packer.exe
 endif
 
-.PHONY: all qemu.alpine
+.PHONY: container qemu qemu.alpine container.fedora-init
+
+CONTAINER_TARGETS := container.fedora-init
+QEMU_TARGETS := qemu.alpine
+
+container:
+	@for target in $(CONTAINER_TARGETS); do \
+		$(MAKE) $$target; \
+	done
+
+qemu:
+	@for target in $(QEMU_TARGETS); do \
+		$(MAKE) $$target; \
+	done
 
 qemu.alpine:
 	cd qemu/alpine
 	$(PACKER) build  -var build_password='$(shell pwgen --capitalize --numerals --symbols 20 1)' -on-error=ask -force -only qemu.alpine .
+
+container.fedora-init:
+	cd container/fedora && ./buildah_fedora-init.sh
