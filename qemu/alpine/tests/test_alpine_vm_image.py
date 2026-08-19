@@ -1,6 +1,5 @@
 import pytest
 
-
 service_accounts_to_test = {"ansible.svc": "wheel"}
 
 
