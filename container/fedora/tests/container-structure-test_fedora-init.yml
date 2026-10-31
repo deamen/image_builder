@@ -1,0 +1,34 @@
+schemaVersion: 2.0.0
+
+metadataTest:
+  entrypoint:
+    - "/sbin/init"
+  labels:
+    - key: 'org.opencontainers.image.title'
+      value: 'fedora-init'
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/deamen/image_builder'
+
+fileExistenceTests:
+  - name: 'systemd binary'
+    path: '/usr/lib/systemd/systemd'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+  - name: 'init symlink'
+    path: '/sbin/init'
+    shouldExist: true
+
+fileContentTests:
+  - name: 'OS is Fedora'
+    path: '/etc/os-release'
+    expectedContents: ['NAME="Fedora Linux"', 'ID=fedora']
+
+commandTests:
+  - name: 'systemd version'
+    command: 'systemctl'
+    args: ['--version']
+    expectedOutput: ['systemd']
+  - name: 'expected packages installed'
+    command: 'rpm'
+    args: ['-q', 'systemd', 'procps-ng']
+    expectedOutput: ['systemd', 'procps-ng']

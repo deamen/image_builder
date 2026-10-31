@@ -20,3 +20,6 @@ __pycache__
 
 # Ignore SSH config file
 qemu/alpine/tests/ssh_config
+
+# Ignore vim swap file
+*.swp
