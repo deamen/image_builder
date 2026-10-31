@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 CONTAINER_STRUCTURE_TEST ?= container-structure-test
 PYTEST ?= pytest
-IMAGE ?= quay.io/deamen/fedora-init:latest
+IMAGE ?= quay.io/deamen/fedora-init-amd64:latest
 
 CONTAINER_TEST_FILES := $(wildcard container-structure-test_*.yml)
 PYTEST_FILES := $(wildcard test_*.py)
@@ -11,7 +11,13 @@ CONTAINER_TEST_TARGETS := $(patsubst container-structure-test_%.yml,container-st
 PYTEST_TARGETS := $(patsubst test_%.py,pytest-%,$(PYTEST_FILES))
 TEST_TARGETS := $(CONTAINER_TEST_TARGETS) $(PYTEST_TARGETS)
 
-.PHONY: all tests list-tests $(TEST_TARGETS)
+##
+# Individual test targets (container-structure-test-*, pytest-*) are deliberately NOT
+# listed here. Declaring their exact expanded names as .PHONY prerequisites creates an
+# empty explicit rule for each one, which takes precedence over the pattern rules below
+# and makes `make` print "Nothing to be done" instead of running the recipe.
+##
+.PHONY: all tests list-tests
 
 all: tests
 
@@ -26,7 +32,4 @@ container-structure-test-%: container-structure-test_%.yml
 
 # Pytest-based checks.
 pytest-%: test_%.py
-	$(PYTEST) -q "$<"
-
-# Keep the old name pattern as a convenience alias if desired.
-container-structure-test_fedora-init: container-structure-test-fedora-init
+	IMAGE="$(IMAGE)" $(PYTEST) -q "$<"

@@ -22,7 +22,7 @@ The aggregate target:
 
 - `make tests`
 
-runs all discovered test targets in this directory.
+runs all discovered test targets in this directory, against whatever single `IMAGE` is configured — so in practice you run one image's test file at a time.
 
 ## Running tests
 
@@ -36,7 +36,8 @@ make tests
 To run a single test:
 
 ```sh
-make container-structure-test-fedora-init
+make container-structure-test-fedora-init IMAGE=quay.io/deamen/fedora-init-amd64:latest
+make container-structure-test-fedora-ansible IMAGE=quay.io/deamen/fedora-ansible-amd64:latest
 ```
 
 If you add a new Python test file such as:
@@ -58,7 +59,21 @@ The Makefile supports overriding the test tools and image name from the command 
 ```sh
 make tests CONTAINER_STRUCTURE_TEST=/usr/local/bin/container-structure-test
 make tests PYTEST=python3 -m pytest
-make tests IMAGE=quay.io/deamen/fedora-init:latest
+make tests IMAGE=quay.io/deamen/fedora-init-amd64:latest
+```
+
+## Pytest-based checks
+
+`test_fedora-init.py` is an end-to-end usage test for `fedora-init`: it builds `Containerfile.sshd`
+on top of the image under test (installing and enabling `sshd`), starts it as a container so
+systemd actually boots, and uses [pytest-testinfra](https://testinfra.readthedocs.io/) (via its
+`podman://` backend) to check that `sshd` is enabled, running, and listening on port 22.
+`container-structure-test` alone can't do this since it doesn't boot the image.
+
+Requires `pytest` and `pytest-testinfra` (`pip install pytest-testinfra`), plus `podman` on `PATH`.
+
+```sh
+make pytest-fedora-init IMAGE=quay.io/deamen/fedora-init-amd64:latest
 ```
 
 ## Notes

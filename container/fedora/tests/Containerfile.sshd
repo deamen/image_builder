@@ -1,0 +1,10 @@
+# Container file for testing fedora-init image with sshd service
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# iproute is only needed so the test can check the listening socket with `ss`
+RUN dnf install -y --nodocs --setopt install_weak_deps=0  openssh-server iproute
+
+RUN systemctl enable sshd.service
+
+EXPOSE 22/tcp

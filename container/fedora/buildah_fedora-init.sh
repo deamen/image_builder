@@ -14,9 +14,16 @@ set_container_annotations "$ctr"
 
 add_packages $ctr ${INIT_PACKAGES}
 
-# Configure the container entrypoint and init runtime
+# Use ENTRYPOINT rather than CMD so systemd always starts as PID 1, even if the
+# container runtime passes its own command (that command becomes an argument to
+# init instead of replacing it). Clear the base image's CMD (/bin/bash) so it
+# isn't passed to init by default.
 buildah config --entrypoint '["/sbin/init"]' "$ctr"
-buildah config --cmd "/sbin/init" "$ctr"
+buildah config --cmd '' "$ctr"
+
+# SIGRTMIN+3 is what systemd-as-PID1 treats as a clean shutdown request;
+# without this, `podman/docker stop` sends SIGTERM, which systemd instead
+# interprets as a request to re-exec/soft-reboot PID 1.
 buildah config --stop-signal SIGRTMIN+3 "$ctr"
 
 # Mask unnecessary systemd units
