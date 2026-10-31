@@ -7,7 +7,6 @@ BASE_CONTAINER="buildah from --arch $ARCH $BASE_IMAGE"
 INIT_CONTAINER="buildah from --arch $ARCH $INIT_IMAGE"
 AUTHORS="deamen"
 REGISTRY_URL="quay.io/deamen"
-IMAGE_TITLE="${IMAGE_TITLE:-fedora-init}"
 IMAGE_SOURCE="${IMAGE_SOURCE:-https://github.com/deamen/image_builder}"
 
 set_container_annotations() {

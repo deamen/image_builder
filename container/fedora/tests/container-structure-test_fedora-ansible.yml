@@ -1,0 +1,36 @@
+schemaVersion: 2.0.0
+
+metadataTest:
+  user: 'builder'
+  workdir: '/home/builder'
+  labels:
+    - key: 'org.opencontainers.image.title'
+      value: 'fedora-ansible'
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/deamen/image_builder'
+
+fileExistenceTests:
+  - name: 'ansible binary'
+    path: '/usr/bin/ansible'
+    shouldExist: true
+  - name: 'pipx binary'
+    path: '/usr/bin/pipx'
+    shouldExist: true
+  - name: 'detect-secrets installed via pipx for builder'
+    path: '/home/builder/.local/bin/detect-secrets'
+    shouldExist: true
+
+fileContentTests:
+  - name: 'git prompt helper installed'
+    path: '/etc/profile.d/load_git-prompt.sh'
+    expectedContents: ['git-prompt']
+
+commandTests:
+  - name: 'ansible version'
+    command: 'ansible'
+    args: ['--version']
+    expectedOutput: ['ansible']
+  - name: 'expected packages installed'
+    command: 'rpm'
+    args: ['-q', 'ansible', 'openssh-clients', 'git', 'sudo']
+    expectedOutput: ['ansible', 'openssh-clients', 'git', 'sudo']

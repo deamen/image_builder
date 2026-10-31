@@ -8,9 +8,9 @@ else
 PACKER=packer.exe
 endif
 
-.PHONY: container qemu qemu.alpine container.fedora-init
+.PHONY: container qemu qemu.alpine container.fedora-init container.fedora-ansible
 
-CONTAINER_TARGETS := container.fedora-init
+CONTAINER_TARGETS := container.fedora-init container.fedora-ansible
 QEMU_TARGETS := qemu.alpine
 
 container:
@@ -29,3 +29,6 @@ qemu.alpine:
 
 container.fedora-init:
 	cd container/fedora && ./buildah_fedora-init.sh
+
+container.fedora-ansible:
+	cd container/fedora && ./buildah_fedora-ansible.sh
