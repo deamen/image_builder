@@ -1,0 +1,77 @@
+schemaVersion: 2.0.0
+
+metadataTest:
+  # Inherited from fedora-init, the DST shards run as systemd units
+  entrypoint:
+    - "/sbin/init"
+  labels:
+    - key: 'org.opencontainers.image.title'
+      value: 'fedora-dst'
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/deamen/image_builder'
+  envVars:
+    - key: 'STEAMCMD_PATH'
+      value: '/usr/local/bin/steamcmd.sh'
+    - key: 'DST_INSTALL_DIR'
+      value: '/opt/klei/dst'
+    - key: 'DST_USER_DATA_DIR'
+      value: '/opt/klei/dst_user_data'
+    - key: 'DST_MODS_PATH'
+      value: '/opt/klei/dst_user_data/mods'
+    - key: 'DST_UGC_PATH'
+      value: '/opt/klei/dst_user_data/mods/ugc'
+    - key: 'DST_MODS_DEFAULT_PATH'
+      value: '/opt/klei/dst_mods_default'
+  exposedPorts: ['10998-10999/udp', '27017-27018/udp']
+  volumes: ['/opt/klei/dst_user_data']
+
+fileExistenceTests:
+  - name: 'steamcmd'
+    path: '/usr/local/bin/steamcmd.sh'
+    shouldExist: true
+  - name: 'DST dedicated server binary'
+    path: '/opt/klei/dst/bin64/dontstarve_dedicated_server_nullrenderer_x64'
+    shouldExist: true
+  - name: 'update steamcmd script'
+    path: '/opt/klei/dst/update_dst.steamcmd'
+    shouldExist: true
+  - name: 'pristine mods copy used to seed bind-mounted volumes'
+    path: '/opt/klei/dst_mods_default/dedicated_server_mods_setup.lua'
+    shouldExist: true
+  - name: 'ugc directory'
+    path: '/opt/klei/dst_user_data/mods/ugc'
+    shouldExist: true
+  - name: 'prepare script'
+    path: '/usr/local/bin/prepare_dst_cluster.sh'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+  - name: 'update script'
+    path: '/usr/local/bin/update_dst_server.sh'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+fileContentTests:
+  - name: 'master unit allows a long update before start'
+    path: '/etc/systemd/system/dst_master.service'
+    expectedContents: ['TimeoutStartSec=', 'ExecStartPre=/usr/local/bin/prepare_dst_cluster.sh']
+  - name: 'caves unit requires master'
+    path: '/etc/systemd/system/dst_caves.service'
+    expectedContents: ['Requires=dst_master.service', 'ExecStartPre=/usr/local/bin/prepare_dst_cluster.sh']
+
+commandTests:
+  - name: 'mods is a symlink into the persistent volume'
+    command: 'readlink'
+    args: ['/opt/klei/dst/mods']
+    expectedOutput: ['^/opt/klei/dst_user_data/mods$']
+  - name: 'DST shard units enabled'
+    command: 'systemctl'
+    args: ['is-enabled', 'dst_master.service', 'dst_caves.service']
+    expectedOutput: ['enabled\nenabled']
+  - name: 'expected packages installed'
+    command: 'rpm'
+    args: ['-q', 'glibc.i686', 'libcurl-gnutls']
+    expectedOutput: ['glibc-.*\.i686', 'libcurl-gnutls']
+  - name: 'DST server shared libraries resolve'
+    command: 'ldd'
+    args: ['/opt/klei/dst/bin64/dontstarve_dedicated_server_nullrenderer_x64']
+    excludedOutput: ['not found']

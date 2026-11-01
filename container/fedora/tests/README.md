@@ -38,6 +38,7 @@ To run a single test:
 ```sh
 make container-structure-test-fedora-init IMAGE=quay.io/deamen/fedora-init-amd64:latest
 make container-structure-test-fedora-ansible IMAGE=quay.io/deamen/fedora-ansible-amd64:latest
+make container-structure-test-fedora-dst IMAGE=quay.io/deamen/fedora-dst-amd64:latest
 ```
 
 If you add a new Python test file such as:

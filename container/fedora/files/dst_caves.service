@@ -1,0 +1,28 @@
+[Unit]
+Description=Don't Starve Together Caves Shard
+After=network.target
+After=dst_master.service
+# Caves can't run without the Master shard; without Requires= it would still
+# start (and keep reconnecting) when the master fails its start checks
+Requires=dst_master.service
+
+[Service]
+Type=simple
+Environment="DST_USER_DATA_DIR=/opt/klei/dst_user_data"
+Environment="DST_MODS_PATH=/opt/klei/dst_user_data/mods"
+Environment="DST_UGC_PATH=/opt/klei/dst_user_data/mods/ugc"
+Environment="DST_MODS_DEFAULT_PATH=/opt/klei/dst_mods_default"
+WorkingDirectory=/opt/klei/dst/bin64
+# Same mandatory checks as the master, in case this unit is started on its own
+ExecStartPre=/usr/local/bin/prepare_dst_cluster.sh
+ExecStart=/opt/klei/dst/bin64/dontstarve_dedicated_server_nullrenderer_x64 \
+    -skip_update_server_mods \
+    -persistent_storage_root "${DST_USER_DATA_DIR}" \
+    -conf_dir / \
+    -ugc_directory "${DST_UGC_PATH}" \
+    -cluster Cluster_1 \
+    -shard Caves
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
