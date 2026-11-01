@@ -5,6 +5,7 @@ name: Enable Auto-Merge for Owner PRs
 #
 # Requires, in the repository settings:
 #   - General -> "Allow auto-merge" enabled
+#   - General -> "Allow rebase merging" enabled
 #   - General -> "Automatically delete head branches" enabled, so the branch is
 #     removed when GitHub performs the merge
 #   - A ruleset on master with the required status checks (e.g.
@@ -33,5 +34,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
+      # --rebase (not --squash) keeps every PR commit, replayed onto master
+      # without a merge commit
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_NUMBER"
+        run: gh pr merge --auto --rebase "$PR_NUMBER"
