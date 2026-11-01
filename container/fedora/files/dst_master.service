@@ -1,0 +1,34 @@
+[Unit]
+Description=Don't Starve Together Master Shard
+After=network.target
+Wants=dst_caves.service
+Before=dst_caves.service
+
+[Service]
+Type=simple
+Environment="STEAMCMD_PATH=/usr/local/bin/steamcmd.sh"
+Environment="DST_INSTALL_DIR=/opt/klei/dst"
+Environment="DST_USER_DATA_DIR=/opt/klei/dst_user_data"
+Environment="DST_MODS_PATH=/opt/klei/dst_user_data/mods"
+Environment="DST_UGC_PATH=/opt/klei/dst_user_data/mods/ugc"
+Environment="DST_MODS_DEFAULT_PATH=/opt/klei/dst_mods_default"
+WorkingDirectory=/opt/klei/dst/bin64
+# The SteamCMD + mod update in ExecStartPre can easily exceed the default 90s
+# start timeout, after which systemd would kill it and fail the unit
+TimeoutStartSec=30min
+# No "-" prefix: a missing cluster token must stop the unit rather than start
+# a server that can only crash-loop
+ExecStartPre=/usr/local/bin/prepare_dst_cluster.sh
+# Don't fail if the update script fails, as it may be due to a transient network issue. The server will still attempt to start with the existing files.
+ExecStartPre=-/usr/local/bin/update_dst_server.sh
+ExecStart=/opt/klei/dst/bin64/dontstarve_dedicated_server_nullrenderer_x64 \
+    -skip_update_server_mods \
+    -persistent_storage_root "${DST_USER_DATA_DIR}" \
+    -conf_dir / \
+    -ugc_directory "${DST_UGC_PATH}" \
+    -cluster Cluster_1 \
+    -shard Master
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
