@@ -1,6 +1,10 @@
 schemaVersion: 2.0.0
 
 metadataTest:
+  entrypoint: []
+  cmd:
+    - '/bin/bash'
+    - '--login'
   user: 'builder'
   workdir: '/home/builder'
   labels:
