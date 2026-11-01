@@ -35,7 +35,12 @@ buildah config --workingdir "/home/${CONTAINER_USER}" "$ctr"
 
 install_pipx_packages $ctr ${ANSIBLE_PIP_PACKAGES}
 
-# Set the default command to login shell
+# Set the default command to login shell. To keep it running in the background,
+# start with -dit (bash exits without a tty/stdin) and --init (bash as PID 1
+# ignores SIGTERM, so podman stop would wait for the timeout):
+#   podman run -dit --init --name ansible <image>
+# then open shells with "podman exec -it ansible bash -l". Avoid "podman attach":
+# exiting that shell stops the container (detach with Ctrl-p Ctrl-q instead).
 set_default_cmd $ctr "/bin/bash --login"
 
 commit_and_squash $ctr ${IMAGE_NAME}
