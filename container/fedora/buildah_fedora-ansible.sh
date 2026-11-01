@@ -1,11 +1,13 @@
 #!/bin/bash
 set -e
 
+# Only what ansible needs to run; general tools (git, tar, ...) come from deamen.general.install_dev_packages
 # openssh-clients is needed for ansible to connect to remote hosts
-ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx git sudo"
+# python3-libdnf5 is needed by the package module to use dnf5
+ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx sudo python3-libdnf5"
 ANSIBLE_PIP_PACKAGES="detect-secrets molecule"
-# Unpinned so each build picks up the latest collection release
-DEAMEN_ANSIBLE_COLLECTION=${DEAMEN_ANSIBLE_COLLECTION:-deamen.ansible}
+# Unpinned so each build picks up the latest collection releases
+DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ansible deamen.general}
 
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
@@ -29,12 +31,14 @@ buildah run "$ctr" useradd -m "${CONTAINER_USER}"
 buildah run "$ctr" sh -c "echo '${CONTAINER_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${CONTAINER_USER}"
 buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
 
-# Install the published collection system-wide (pulls in deamen.general), then
-# configure the user's dev environment (git prompt, aliases, ~/Prj) with its playbook
-buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections "${DEAMEN_ANSIBLE_COLLECTION}"
+# Install the published collections system-wide, then apply their playbooks to the container itself
+buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections ${DEAMEN_COLLECTIONS}
+ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3)
+# Install general dev tools (git, gh, tar, gzip, procps-ng, which, ...) as root
+buildah run "$ctr" "${ANSIBLE_PLAYBOOK[@]}" deamen.general.install_development_packages
+# Configure the user's dev environment (git prompt, aliases, ~/Prj)
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3 \
-    -e install_molecule_via_pip=false deamen.ansible.configure_system_ansible_runtime_env
+    "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_system_ansible_runtime_env
 
 # Set the default user and working directory for the container
 buildah config --user "${CONTAINER_USER}" "$ctr"
