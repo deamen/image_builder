@@ -22,7 +22,7 @@ fileExistenceTests:
 
 fileContentTests:
   - name: 'git prompt helper installed'
-    path: '/etc/profile.d/load_git-prompt.sh'
+    path: '/home/builder/.bashrc.d/load_git-prompt.sh'
     expectedContents: ['git-prompt']
 
 commandTests:
@@ -34,3 +34,7 @@ commandTests:
     command: 'rpm'
     args: ['-q', 'ansible', 'openssh-clients', 'git', 'sudo']
     expectedOutput: ['ansible', 'openssh-clients', 'git', 'sudo']
+  - name: 'git prompt loaded in login shell'
+    command: 'bash'
+    args: ['-lc', 'type -t __git_ps1']
+    expectedOutput: ['function']
