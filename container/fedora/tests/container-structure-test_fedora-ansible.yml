@@ -64,6 +64,14 @@ commandTests:
     command: 'rpm'
     args: ['-q', 'ansible', 'openssh-clients', 'git', 'sudo']
     expectedOutput: ['ansible', 'openssh-clients', 'git', 'sudo']
+  - name: 'dev packages installed by playbook'
+    command: 'rpm'
+    args: ['-q', 'gh', 'jq', 'tmux', 'vim-enhanced']
+    expectedOutput: ['gh', 'jq', 'tmux', 'vim-enhanced']
+  - name: 'VS Code server prerequisites installed'
+    command: 'rpm'
+    args: ['-q', 'tar', 'gzip', 'procps-ng', 'which']
+    expectedOutput: ['tar', 'gzip', 'procps-ng', 'which']
   - name: 'git prompt loaded in login shell'
     command: 'bash'
     args: ['-lc', 'type -t __git_ps1']
