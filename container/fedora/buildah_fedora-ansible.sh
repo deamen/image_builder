@@ -3,7 +3,9 @@ set -e
 
 # openssh-clients is needed for ansible to connect to remote hosts
 ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx git sudo"
-ANSIBLE_PIP_PACKAGES="detect-secrets"
+ANSIBLE_PIP_PACKAGES="detect-secrets molecule"
+# Pinned so a new collection release doesn't change the image unnoticed
+DEAMEN_ANSIBLE_COLLECTION=${DEAMEN_ANSIBLE_COLLECTION:-deamen.ansible:==1.0.2}
 
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
@@ -27,6 +29,14 @@ buildah run "$ctr" useradd -m "${CONTAINER_USER}"
 buildah run "$ctr" sh -c "echo '${CONTAINER_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${CONTAINER_USER}"
 buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
 
+# Install the published collection system-wide (pulls in deamen.general), then
+# configure the user's dev environment with its playbook
+buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections "${DEAMEN_ANSIBLE_COLLECTION}"
+buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
+    ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3 \
+    -e install_molecule_via_pip=false deamen.ansible.configure_system_ansible_runtime_env
+
+# Runs after the playbook so the image's load_git-prompt.sh replaces the role's copy
 configure_git_prompt $ctr "${CONTAINER_USER}"
 
 # Set the default user and working directory for the container
