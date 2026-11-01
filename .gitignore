@@ -23,3 +23,6 @@ qemu/alpine/tests/ssh_config
 
 # Ignore vim swap file
 *.swp
+
+# Ignore Ansible local cache/lock directory
+.ansible/
