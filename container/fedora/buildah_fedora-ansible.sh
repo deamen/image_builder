@@ -4,6 +4,8 @@ set -e
 # openssh-clients is needed for ansible to connect to remote hosts
 ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx git sudo"
 ANSIBLE_PIP_PACKAGES="detect-secrets"
+# https://github.com/schpet/linear-cli
+LINEAR_CLI_VERSION=${LINEAR_CLI_VERSION:-v3.1.0}
 
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
@@ -17,6 +19,23 @@ ctr=$(eval "$MINIMAL_CONTAINER")
 set_container_annotations "$ctr"
 
 add_packages $ctr ${ANSIBLE_PACKAGES}
+
+# Install linear-cli from the GitHub release. Download and verify on the host,
+# since fedora-minimal has no tar/xz to unpack the .tar.xz archive.
+case "$ARCH" in
+    amd64) LINEAR_CLI_ARCH=x86_64 ;;
+    arm64) LINEAR_CLI_ARCH=aarch64 ;;
+    *) echo "Error: linear-cli is not available for ARCH=${ARCH}" >&2; exit 1 ;;
+esac
+LINEAR_CLI_TARBALL="linear-${LINEAR_CLI_ARCH}-unknown-linux-gnu.tar.xz"
+LINEAR_CLI_URL="https://github.com/schpet/linear-cli/releases/download/${LINEAR_CLI_VERSION}/${LINEAR_CLI_TARBALL}"
+linear_tmp=$(mktemp -d)
+trap 'rm -rf "$linear_tmp"' EXIT
+curl -sfL -o "${linear_tmp}/${LINEAR_CLI_TARBALL}" "$LINEAR_CLI_URL"
+curl -sfL -o "${linear_tmp}/${LINEAR_CLI_TARBALL}.sha256" "${LINEAR_CLI_URL}.sha256"
+(cd "$linear_tmp" && sha256sum -c "${LINEAR_CLI_TARBALL}.sha256")
+tar -xJf "${linear_tmp}/${LINEAR_CLI_TARBALL}" -C "$linear_tmp" --strip-components=1
+buildah copy --chmod 0755 "$ctr" "${linear_tmp}/linear" /usr/local/bin/linear
 
 # Add ~/.local/bin to PATH for all users
 buildah run "$ctr" sh -c "echo 'export PATH=\$PATH:~/.local/bin' > /etc/profile.d/user_home_local_bin.sh"

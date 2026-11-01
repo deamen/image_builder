@@ -30,6 +30,10 @@ commandTests:
     command: 'ansible'
     args: ['--version']
     expectedOutput: ['ansible']
+  - name: 'linear-cli version'
+    command: 'linear'
+    args: ['--version']
+    expectedOutput: ['linear [0-9]']
   - name: 'expected packages installed'
     command: 'rpm'
     args: ['-q', 'ansible', 'openssh-clients', 'git', 'sudo']
