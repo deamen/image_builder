@@ -65,8 +65,11 @@ set_default_cmd() {
 }
 
 configure_git_prompt() {
-    echo "Configuring git prompt in container $1 ..."
+    echo "Configuring git prompt for user $2 in container $1 ..."
     local ctr="$1"
-    buildah copy "$ctr" "$(dirname "$0")/files/load_git-prompt.sh" /etc/profile.d/load_git-prompt.sh
-    buildah run "$ctr" chmod 0644 /etc/profile.d/load_git-prompt.sh
+    local user="$2"
+    # Fedora's default ~/.bashrc sources everything in ~/.bashrc.d
+    buildah run "$ctr" mkdir -p "/home/${user}/.bashrc.d"
+    buildah copy --chown "${user}:${user}" --chmod 0644 "$ctr" "$(dirname "$0")/files/load_git-prompt.sh" "/home/${user}/.bashrc.d/load_git-prompt.sh"
+    buildah run "$ctr" chown "${user}:${user}" "/home/${user}/.bashrc.d"
 }

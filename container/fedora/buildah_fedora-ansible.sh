@@ -22,12 +22,12 @@ add_packages $ctr ${ANSIBLE_PACKAGES}
 buildah run "$ctr" sh -c "echo 'export PATH=\$PATH:~/.local/bin' > /etc/profile.d/user_home_local_bin.sh"
 buildah run "$ctr" chmod 0644 /etc/profile.d/user_home_local_bin.sh
 
-configure_git_prompt $ctr
-
 # Create default user and allow passwordless sudo
 buildah run "$ctr" useradd -m "${CONTAINER_USER}"
 buildah run "$ctr" sh -c "echo '${CONTAINER_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${CONTAINER_USER}"
 buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
+
+configure_git_prompt $ctr "${CONTAINER_USER}"
 
 # Set the default user and working directory for the container
 buildah config --user "${CONTAINER_USER}" "$ctr"
