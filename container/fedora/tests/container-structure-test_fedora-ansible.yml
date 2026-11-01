@@ -23,11 +23,37 @@ fileExistenceTests:
   - name: 'detect-secrets installed via pipx for builder'
     path: '/home/builder/.local/bin/detect-secrets'
     shouldExist: true
+  - name: 'molecule installed via pipx for builder'
+    path: '/home/builder/.local/bin/molecule'
+    shouldExist: true
+  - name: 'deamen.ansible collection installed system-wide'
+    path: '/usr/share/ansible/collections/ansible_collections/deamen/ansible'
+    shouldExist: true
+  - name: 'deamen.general collection installed as dependency'
+    path: '/usr/share/ansible/collections/ansible_collections/deamen/general'
+    shouldExist: true
+  - name: 'Prj directory created by playbook'
+    path: '/home/builder/Prj'
+    shouldExist: true
+    uid: 1000
+    permissions: 'drwx------'
+  - name: 'Ref directory created by playbook'
+    path: '/home/builder/Ref'
+    shouldExist: true
+    uid: 1000
+  - name: 'ansible vault stub deployed by playbook'
+    path: '/home/builder/.ansible_vault.yml'
+    shouldExist: true
+    uid: 1000
+    permissions: '-rw-------'
 
 fileContentTests:
   - name: 'git prompt helper installed'
     path: '/home/builder/.bashrc.d/load_git-prompt.sh'
     expectedContents: ['git-prompt']
+  - name: 'dev aliases deployed by playbook'
+    path: '/home/builder/.bashrc.d/aliases.sh'
+    expectedContents: ['alias prj=']
 
 commandTests:
   - name: 'ansible version'
@@ -42,3 +68,7 @@ commandTests:
     command: 'bash'
     args: ['-lc', 'type -t __git_ps1']
     expectedOutput: ['function']
+  - name: 'prj alias available in login shell'
+    command: 'bash'
+    args: ['-lc', 'alias prj']
+    expectedOutput: ['alias prj=']
