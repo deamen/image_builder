@@ -7,7 +7,7 @@ set -e
 ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx sudo python3-libdnf5"
 ANSIBLE_PIP_PACKAGES="detect-secrets molecule"
 # Unpinned so each build picks up the latest collection releases
-DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ansible deamen.general}
+DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ai deamen.ansible deamen.general}
 
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
@@ -36,6 +36,8 @@ buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/colle
 ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3)
 # Install general dev tools (git, gh, tar, gzip, procps-ng, which, ...) as root
 buildah run "$ctr" "${ANSIBLE_PLAYBOOK[@]}" deamen.general.install_development_packages
+# Install linear-cli (https://github.com/schpet/linear-cli) into /usr/local/bin
+buildah run "$ctr" "${ANSIBLE_PLAYBOOK[@]}" deamen.ai.install_linear_cli
 # Configure the user's dev environment (git prompt, aliases, ~/Prj)
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
     "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_system_ansible_runtime_env
