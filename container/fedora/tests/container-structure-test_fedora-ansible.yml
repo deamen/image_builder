@@ -5,8 +5,8 @@ metadataTest:
   cmd:
     - '/bin/bash'
     - '--login'
-  user: 'builder'
-  workdir: '/home/builder'
+  user: 'deamen'
+  workdir: '/home/deamen'
   labels:
     - key: 'org.opencontainers.image.title'
       value: 'fedora-ansible'
@@ -20,11 +20,11 @@ fileExistenceTests:
   - name: 'pipx binary'
     path: '/usr/bin/pipx'
     shouldExist: true
-  - name: 'detect-secrets installed via pipx for builder'
-    path: '/home/builder/.local/bin/detect-secrets'
+  - name: 'detect-secrets installed via pipx for deamen'
+    path: '/home/deamen/.local/bin/detect-secrets'
     shouldExist: true
-  - name: 'molecule installed via pipx for builder'
-    path: '/home/builder/.local/bin/molecule'
+  - name: 'molecule installed via pipx for deamen'
+    path: '/home/deamen/.local/bin/molecule'
     shouldExist: true
   - name: 'deamen.ansible collection installed system-wide'
     path: '/usr/share/ansible/collections/ansible_collections/deamen/ansible'
@@ -33,26 +33,26 @@ fileExistenceTests:
     path: '/usr/share/ansible/collections/ansible_collections/deamen/general'
     shouldExist: true
   - name: 'Prj directory created by playbook'
-    path: '/home/builder/Prj'
+    path: '/home/deamen/Prj'
     shouldExist: true
     uid: 1000
     permissions: 'drwx------'
   - name: 'Ref directory created by playbook'
-    path: '/home/builder/Ref'
+    path: '/home/deamen/Ref'
     shouldExist: true
     uid: 1000
   - name: 'ansible vault stub deployed by playbook'
-    path: '/home/builder/.ansible_vault.yml'
+    path: '/home/deamen/.ansible_vault.yml'
     shouldExist: true
     uid: 1000
     permissions: '-rw-------'
 
 fileContentTests:
   - name: 'git prompt helper installed'
-    path: '/home/builder/.bashrc.d/load_git-prompt.sh'
+    path: '/home/deamen/.bashrc.d/load_git-prompt.sh'
     expectedContents: ['git-prompt']
   - name: 'dev aliases deployed by playbook'
-    path: '/home/builder/.bashrc.d/aliases.sh'
+    path: '/home/deamen/.bashrc.d/aliases.sh'
     expectedContents: ['alias prj=']
 
 commandTests:
