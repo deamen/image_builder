@@ -13,7 +13,7 @@ source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
 IMAGE_NAME=${IMAGE_NAME:-${REGISTRY_URL}/${IMAGE_TITLE}-${ARCH}}
 # Non-root user the container runs as (AUTHORS is the image label, not a user)
-CONTAINER_USER=${CONTAINER_USER:-builder}
+CONTAINER_USER=${CONTAINER_USER:-deamen}
 
 # Create a new container from the fedora-minimal image with specified architecture
 ctr=$(eval "$MINIMAL_CONTAINER")
