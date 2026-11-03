@@ -60,6 +60,14 @@ commandTests:
     command: 'ansible'
     args: ['--version']
     expectedOutput: ['ansible']
+  - name: 'podman version'
+    command: 'podman'
+    args: ['--version']
+    expectedOutput: ['podman version']
+  - name: 'Copilot CLI installed for deamen'
+    command: 'bash'
+    args: ['-lc', 'command -v copilot']
+    expectedOutput: ['/home/deamen/.local/bin/copilot']
   - name: 'linear-cli version'
     command: 'linear'
     args: ['--version']

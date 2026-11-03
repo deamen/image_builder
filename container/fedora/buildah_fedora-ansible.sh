@@ -7,7 +7,8 @@ set -e
 ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx sudo python3-libdnf5"
 ANSIBLE_PIP_PACKAGES="detect-secrets molecule"
 # Unpinned so each build picks up the latest collection releases
-DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ai deamen.ansible deamen.general}
+# deamen.ansible pulls in deamen.general, deamen.gpg, deamen.podman and deamen.ai as dependencies
+DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ansible}
 
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
@@ -34,13 +35,10 @@ buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
 # Install the published collections system-wide, then apply their playbooks to the container itself
 buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections ${DEAMEN_COLLECTIONS}
 ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3)
-# Install general dev tools (git, gh, tar, gzip, procps-ng, which, ...) as root
-buildah run "$ctr" "${ANSIBLE_PLAYBOOK[@]}" deamen.general.install_development_packages
-# Install linear-cli (https://github.com/schpet/linear-cli) into /usr/local/bin
-buildah run "$ctr" "${ANSIBLE_PLAYBOOK[@]}" deamen.ai.install_linear_cli
-# Configure the user's dev environment (git prompt, aliases, ~/Prj)
+# Set up the full Ansible dev environment as the user (dev packages, git prompt, aliases, ~/Prj,
+# Copilot CLI, podman, linear-cli); system-wide tasks escalate through the passwordless sudo above
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_system_ansible_runtime_env
+    "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_ansible_development_env
 
 # Set the default user and working directory for the container
 buildah config --user "${CONTAINER_USER}" "$ctr"
