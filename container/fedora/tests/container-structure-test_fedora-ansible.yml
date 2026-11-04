@@ -41,6 +41,16 @@ fileExistenceTests:
     path: '/home/deamen/Ref'
     shouldExist: true
     uid: 1000
+  - name: 'GPG home created by deamen.gpg.configure_gpg_for_user'
+    path: '/home/deamen/.gnupg'
+    shouldExist: true
+    uid: 1000
+    permissions: 'drwx------'
+  - name: 'gpg-agent.conf deployed by deamen.gpg.configure_gpg_for_user'
+    path: '/home/deamen/.gnupg/gpg-agent.conf'
+    shouldExist: true
+    uid: 1000
+    permissions: '-rw-------'
   - name: 'ansible vault stub deployed by playbook'
     path: '/home/deamen/.ansible_vault.yml'
     shouldExist: true
@@ -54,6 +64,9 @@ fileContentTests:
   - name: 'dev aliases deployed by playbook'
     path: '/home/deamen/.bashrc.d/aliases.sh'
     expectedContents: ['alias prj=']
+  - name: 'gpg-agent cache TTLs are 2 hours default and 12 hours max'
+    path: '/home/deamen/.gnupg/gpg-agent.conf'
+    expectedContents: ['default-cache-ttl 7200', 'max-cache-ttl 43200']
 
 commandTests:
   - name: 'ansible version'
@@ -72,6 +85,14 @@ commandTests:
     command: 'linear'
     args: ['--version']
     expectedOutput: ['linear [0-9]']
+  - name: 'gpg installed'
+    command: 'gpg'
+    args: ['--version']
+    expectedOutput: ['GnuPG']
+  - name: 'no GPG secret keys baked into the image'
+    command: 'gpg'
+    args: ['--list-secret-keys', '--with-colons']
+    excludedOutput: ['sec:']
   - name: 'expected packages installed'
     command: 'rpm'
     args: ['-q', 'ansible', 'openssh-clients', 'git', 'sudo']
