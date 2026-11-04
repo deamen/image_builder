@@ -39,6 +39,11 @@ ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansib
 # Copilot CLI, podman, linear-cli); system-wide tasks escalate through the passwordless sudo above
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
     "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_ansible_development_env
+# Install GPG and deploy gpg-agent.conf for the user. Never import a key here: the image is public,
+# so keys are imported at runtime by running the same playbook against the container
+buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
+    "${ANSIBLE_PLAYBOOK[@]}" -e config_gpg_user="${CONTAINER_USER}" -e config_gpg_import_secret_key=false \
+    -e config_gpg_import_public_key=false deamen.gpg.configure_gpg_for_user
 
 # Set the default user and working directory for the container
 buildah config --user "${CONTAINER_USER}" "$ctr"
