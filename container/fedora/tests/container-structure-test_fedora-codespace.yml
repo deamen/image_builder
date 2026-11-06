@@ -32,6 +32,14 @@ fileExistenceTests:
   - name: 'deamen.general collection installed as dependency'
     path: '/usr/share/ansible/collections/ansible_collections/deamen/general'
     shouldExist: true
+  - name: 'deamen.proton collection installed system-wide'
+    path: '/usr/share/ansible/collections/ansible_collections/deamen/proton'
+    shouldExist: true
+  - name: 'Proton Drive CLI environment deployed by deamen.proton.install_proton_drive_cli'
+    path: '/home/deamen/.bashrc.d/proton_drive_cli.sh'
+    shouldExist: true
+    uid: 1000
+    permissions: '-rw-r--r--'
   - name: 'Prj directory created by playbook'
     path: '/home/deamen/Prj'
     shouldExist: true
@@ -75,6 +83,9 @@ fileContentTests:
   - name: 'himalaya password is read with gpg_cat.sh'
     path: '/home/deamen/.config/himalaya/config.toml'
     expectedContents: ['password.command = "/usr/local/bin/gpg_cat.sh --gpg_file /home/deamen/.config/himalaya/selfhosted.gpg"']
+  - name: 'Proton Drive CLI stores credentials in a file'
+    path: '/home/deamen/.bashrc.d/proton_drive_cli.sh'
+    expectedContents: ['export PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file']
 
 commandTests:
   - name: 'ansible version'
@@ -93,6 +104,14 @@ commandTests:
     command: 'bash'
     args: ['-lc', 'command -v himalaya']
     expectedOutput: ['/home/deamen/.local/bin/himalaya']
+  - name: 'Proton Drive CLI installed for deamen'
+    command: 'bash'
+    args: ['-lc', 'command -v proton-drive']
+    expectedOutput: ['/home/deamen/.local/bin/proton-drive']
+  - name: 'PROTON_DRIVE_CREDENTIALS_STORE set in login shells'
+    command: 'bash'
+    args: ['-lc', 'echo $PROTON_DRIVE_CREDENTIALS_STORE']
+    expectedOutput: ['unsafe_file']
   - name: 'linear-cli version'
     command: 'linear'
     args: ['--version']
