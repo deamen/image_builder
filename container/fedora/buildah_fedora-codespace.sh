@@ -44,6 +44,10 @@ buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --wo
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
     "${ANSIBLE_PLAYBOOK[@]}" -e config_gpg_user="${CONTAINER_USER}" -e config_gpg_import_secret_key=false \
     -e config_gpg_import_public_key=false deamen.gpg.configure_gpg_for_user
+# Install himalaya into ~/.local/bin with an example config.toml. The playbook targets the implicit
+# localhost; set the real account and create the GPG password file at runtime by rerunning it with -e
+buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
+    ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.general.install_himalaya
 
 # Set the default user and working directory for the container
 buildah config --user "${CONTAINER_USER}" "$ctr"

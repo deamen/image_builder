@@ -51,6 +51,11 @@ fileExistenceTests:
     shouldExist: true
     uid: 1000
     permissions: '-rw-------'
+  - name: 'himalaya config.toml deployed by deamen.general.install_himalaya'
+    path: '/home/deamen/.config/himalaya/config.toml'
+    shouldExist: true
+    uid: 1000
+    permissions: '-rw-------'
   - name: 'ansible vault stub deployed by playbook'
     path: '/home/deamen/.ansible_vault.yml'
     shouldExist: true
@@ -67,6 +72,9 @@ fileContentTests:
   - name: 'gpg-agent cache TTLs are 2 hours default and 12 hours max'
     path: '/home/deamen/.gnupg/gpg-agent.conf'
     expectedContents: ['default-cache-ttl 7200', 'max-cache-ttl 43200']
+  - name: 'himalaya password is read with gpg_cat.sh'
+    path: '/home/deamen/.config/himalaya/config.toml'
+    expectedContents: ['password.command = "/usr/local/bin/gpg_cat.sh --gpg_file /home/deamen/.config/himalaya/selfhosted.gpg"']
 
 commandTests:
   - name: 'ansible version'
@@ -81,6 +89,10 @@ commandTests:
     command: 'bash'
     args: ['-lc', 'command -v copilot']
     expectedOutput: ['/home/deamen/.local/bin/copilot']
+  - name: 'himalaya installed for deamen'
+    command: 'bash'
+    args: ['-lc', 'command -v himalaya']
+    expectedOutput: ['/home/deamen/.local/bin/himalaya']
   - name: 'linear-cli version'
     command: 'linear'
     args: ['--version']
