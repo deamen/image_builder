@@ -8,9 +8,9 @@ else
 PACKER=packer.exe
 endif
 
-.PHONY: container qemu qemu.alpine container.fedora-init container.fedora-ansible container.fedora-dst
+.PHONY: container qemu qemu.alpine container.fedora-init container.fedora-codespace container.fedora-dst
 
-CONTAINER_TARGETS := container.fedora-init container.fedora-ansible
+CONTAINER_TARGETS := container.fedora-init container.fedora-codespace
 QEMU_TARGETS := qemu.alpine
 
 container:
@@ -30,8 +30,8 @@ qemu.alpine:
 container.fedora-init:
 	cd container/fedora && ./buildah_fedora-init.sh
 
-container.fedora-ansible:
-	cd container/fedora && ./buildah_fedora-ansible.sh
+container.fedora-codespace:
+	cd container/fedora && ./buildah_fedora-codespace.sh
 
 # fedora-dst is built on the local fedora-init-$(ARCH) image (see INIT_IMAGE in
 # fedora_vars.sh), so build that first. Not in CONTAINER_TARGETS since it pulls

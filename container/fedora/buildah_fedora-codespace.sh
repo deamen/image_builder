@@ -11,7 +11,7 @@ ANSIBLE_PIP_PACKAGES="detect-secrets molecule"
 DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ansible}
 
 source "$(dirname "$0")/fedora_vars.sh"
-IMAGE_TITLE=${IMAGE_TITLE:-fedora-ansible}
+IMAGE_TITLE=${IMAGE_TITLE:-fedora-codespace}
 IMAGE_NAME=${IMAGE_NAME:-${REGISTRY_URL}/${IMAGE_TITLE}-${ARCH}}
 # Non-root user the container runs as (AUTHORS is the image label, not a user)
 CONTAINER_USER=${CONTAINER_USER:-deamen}
@@ -54,8 +54,8 @@ install_pipx_packages $ctr ${ANSIBLE_PIP_PACKAGES}
 # Set the default command to login shell. To keep it running in the background,
 # start with -dit (bash exits without a tty/stdin) and --init (bash as PID 1
 # ignores SIGTERM, so podman stop would wait for the timeout):
-#   podman run -dit --init --name ansible <image>
-# then open shells with "podman exec -it ansible bash -l". Avoid "podman attach":
+#   podman run -dit --init --name codespace <image>
+# then open shells with "podman exec -it codespace bash -l". Avoid "podman attach":
 # exiting that shell stops the container (detach with Ctrl-p Ctrl-q instead).
 set_default_cmd $ctr "/bin/bash --login"
 

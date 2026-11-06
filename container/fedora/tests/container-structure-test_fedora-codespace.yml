@@ -9,7 +9,7 @@ metadataTest:
   workdir: '/home/deamen'
   labels:
     - key: 'org.opencontainers.image.title'
-      value: 'fedora-ansible'
+      value: 'fedora-codespace'
     - key: 'org.opencontainers.image.source'
       value: 'https://github.com/deamen/image_builder'
 
