@@ -40,6 +40,11 @@ fileExistenceTests:
     shouldExist: true
     uid: 1000
     permissions: '-rw-r--r--'
+  - name: 'Proton Pass CLI environment deployed by deamen.proton.install_proton_pass_cli'
+    path: '/home/deamen/.bashrc.d/proton_pass_cli.sh'
+    shouldExist: true
+    uid: 1000
+    permissions: '-rw-r--r--'
   - name: 'Prj directory created by playbook'
     path: '/home/deamen/Prj'
     shouldExist: true
@@ -86,6 +91,9 @@ fileContentTests:
   - name: 'Proton Drive CLI stores credentials in a file'
     path: '/home/deamen/.bashrc.d/proton_drive_cli.sh'
     expectedContents: ['export PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file']
+  - name: 'Proton Pass CLI stores its session key in a file'
+    path: '/home/deamen/.bashrc.d/proton_pass_cli.sh'
+    expectedContents: ['export PROTON_PASS_KEY_PROVIDER=fs']
 
 commandTests:
   - name: 'ansible version'
@@ -112,6 +120,14 @@ commandTests:
     command: 'bash'
     args: ['-lc', 'echo $PROTON_DRIVE_CREDENTIALS_STORE']
     expectedOutput: ['unsafe_file']
+  - name: 'Proton Pass CLI installed for deamen'
+    command: 'bash'
+    args: ['-lc', 'command -v pass-cli']
+    expectedOutput: ['/home/deamen/.local/bin/pass-cli']
+  - name: 'PROTON_PASS_KEY_PROVIDER set in login shells'
+    command: 'bash'
+    args: ['-lc', 'echo $PROTON_PASS_KEY_PROVIDER']
+    expectedOutput: ['fs']
   - name: 'linear-cli version'
     command: 'linear'
     args: ['--version']
