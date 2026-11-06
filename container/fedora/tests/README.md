@@ -37,7 +37,7 @@ To run a single test:
 
 ```sh
 make container-structure-test-fedora-init IMAGE=quay.io/deamen/fedora-init-amd64:latest
-make container-structure-test-fedora-ansible IMAGE=quay.io/deamen/fedora-ansible-amd64:latest
+make container-structure-test-fedora-codespace IMAGE=quay.io/deamen/fedora-codespace-amd64:latest
 make container-structure-test-fedora-dst IMAGE=quay.io/deamen/fedora-dst-amd64:latest
 ```
 
