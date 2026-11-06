@@ -8,7 +8,7 @@ ANSIBLE_PACKAGES="ansible ansible-lint openssh-clients pre-commit pipx sudo pyth
 ANSIBLE_PIP_PACKAGES="detect-secrets molecule"
 # Unpinned so each build picks up the latest collection releases
 # deamen.ansible pulls in deamen.general, deamen.gpg, deamen.podman and deamen.ai as dependencies;
-# deamen.proton installs the Proton Drive CLI
+# deamen.proton installs the Proton Drive and Proton Pass CLIs
 DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ansible deamen.proton}
 
 source "$(dirname "$0")/fedora_vars.sh"
@@ -53,6 +53,10 @@ buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --wo
 # from ~/.bashrc.d, as the container has no OS secret store; sign in at runtime with "proton-drive auth login"
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
     ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_drive_cli
+# Install the Proton Pass CLI into ~/.local/bin and export PROTON_PASS_KEY_PROVIDER=fs from ~/.bashrc.d,
+# as the container cannot reach the kernel keyring; sign in at runtime with "pass-cli login"
+buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
+    ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_pass_cli
 
 # Set the default user and working directory for the container
 buildah config --user "${CONTAINER_USER}" "$ctr"
