@@ -1,11 +1,12 @@
 schemaVersion: 2.0.0
 
+# The image runs systemd as PID 1, so its default user is root. Checks that depend on the
+# deamen user's login environment run through `sudo -u deamen bash -lc`. File ownership is not
+# asserted because the harness evaluates owners as the image's default user (root).
 metadataTest:
-  entrypoint: []
-  cmd:
-    - '/bin/bash'
-    - '--login'
-  user: 'deamen'
+  entrypoint:
+    - "/sbin/init"
+  cmd: []
   workdir: '/home/deamen'
   labels:
     - key: 'org.opencontainers.image.title'
@@ -38,42 +39,41 @@ fileExistenceTests:
   - name: 'Proton Drive CLI environment deployed by deamen.proton.install_proton_drive_cli'
     path: '/home/deamen/.bashrc.d/proton_drive_cli.sh'
     shouldExist: true
-    uid: 1000
     permissions: '-rw-r--r--'
   - name: 'Proton Pass CLI environment deployed by deamen.proton.install_proton_pass_cli'
     path: '/home/deamen/.bashrc.d/proton_pass_cli.sh'
     shouldExist: true
-    uid: 1000
     permissions: '-rw-r--r--'
   - name: 'Prj directory created by playbook'
     path: '/home/deamen/Prj'
     shouldExist: true
-    uid: 1000
     permissions: 'drwx------'
   - name: 'Ref directory created by playbook'
     path: '/home/deamen/Ref'
     shouldExist: true
-    uid: 1000
   - name: 'GPG home created by deamen.gpg.configure_gpg_for_user'
     path: '/home/deamen/.gnupg'
     shouldExist: true
-    uid: 1000
     permissions: 'drwx------'
   - name: 'gpg-agent.conf deployed by deamen.gpg.configure_gpg_for_user'
     path: '/home/deamen/.gnupg/gpg-agent.conf'
     shouldExist: true
-    uid: 1000
     permissions: '-rw-------'
   - name: 'himalaya config.toml deployed by deamen.general.install_himalaya'
     path: '/home/deamen/.config/himalaya/config.toml'
     shouldExist: true
-    uid: 1000
     permissions: '-rw-------'
   - name: 'ansible vault stub deployed by playbook'
     path: '/home/deamen/.ansible_vault.yml'
     shouldExist: true
-    uid: 1000
     permissions: '-rw-------'
+  - name: 'keyring-unlock command'
+    path: '/usr/local/bin/keyring-unlock'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+  - name: 'keyring D-Bus profile snippet'
+    path: '/etc/profile.d/keyring-bus.sh'
+    shouldExist: true
 
 fileContentTests:
   - name: 'git prompt helper installed'
@@ -94,6 +94,9 @@ fileContentTests:
   - name: 'Proton Pass CLI stores its session key in a file'
     path: '/home/deamen/.bashrc.d/proton_pass_cli.sh'
     expectedContents: ['export PROTON_PASS_KEY_PROVIDER=fs']
+  - name: 'keyring runtime dirs created at boot for deamen (uid 1000)'
+    path: '/usr/lib/tmpfiles.d/keyring.conf'
+    expectedContents: ['d /run/user/1000 0700 deamen deamen -', 'd /run/keyring/1000 0700 deamen deamen -']
 
 commandTests:
   - name: 'ansible version'
@@ -104,29 +107,33 @@ commandTests:
     command: 'podman'
     args: ['--version']
     expectedOutput: ['podman version']
+  - name: 'deamen user has uid 1000'
+    command: 'id'
+    args: ['-u', 'deamen']
+    expectedOutput: ['1000']
   - name: 'Copilot CLI installed for deamen'
-    command: 'bash'
-    args: ['-lc', 'command -v copilot']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'command -v copilot']
     expectedOutput: ['/home/deamen/.local/bin/copilot']
   - name: 'himalaya installed for deamen'
-    command: 'bash'
-    args: ['-lc', 'command -v himalaya']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'command -v himalaya']
     expectedOutput: ['/home/deamen/.local/bin/himalaya']
   - name: 'Proton Drive CLI installed for deamen'
-    command: 'bash'
-    args: ['-lc', 'command -v proton-drive']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'command -v proton-drive']
     expectedOutput: ['/home/deamen/.local/bin/proton-drive']
   - name: 'PROTON_DRIVE_CREDENTIALS_STORE set in login shells'
-    command: 'bash'
-    args: ['-lc', 'echo $PROTON_DRIVE_CREDENTIALS_STORE']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'printenv PROTON_DRIVE_CREDENTIALS_STORE']
     expectedOutput: ['unsafe_file']
   - name: 'Proton Pass CLI installed for deamen'
-    command: 'bash'
-    args: ['-lc', 'command -v pass-cli']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'command -v pass-cli']
     expectedOutput: ['/home/deamen/.local/bin/pass-cli']
   - name: 'PROTON_PASS_KEY_PROVIDER set in login shells'
-    command: 'bash'
-    args: ['-lc', 'echo $PROTON_PASS_KEY_PROVIDER']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'printenv PROTON_PASS_KEY_PROVIDER']
     expectedOutput: ['fs']
   - name: 'linear-cli version'
     command: 'linear'
@@ -160,11 +167,15 @@ commandTests:
     command: 'rpm'
     args: ['-q', 'tar', 'gzip', 'procps-ng', 'which']
     expectedOutput: ['tar', 'gzip', 'procps-ng', 'which']
+  - name: 'keyring packages installed'
+    command: 'rpm'
+    args: ['-q', 'dbus-daemon', 'dbus-tools', 'gnome-keyring', 'libsecret']
+    expectedOutput: ['dbus-daemon', 'dbus-tools', 'gnome-keyring', 'libsecret']
   - name: 'git prompt loaded in login shell'
-    command: 'bash'
-    args: ['-lc', 'type -t __git_ps1']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'type -t __git_ps1']
     expectedOutput: ['function']
   - name: 'prj alias available in login shell'
-    command: 'bash'
-    args: ['-lc', 'alias prj']
+    command: 'sudo'
+    args: ['-u', 'deamen', 'bash', '-lc', 'alias prj']
     expectedOutput: ['alias prj=']
