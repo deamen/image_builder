@@ -50,11 +50,13 @@ add_packages() {
 }
 
 install_pipx_packages() {
-    echo "Installing pip packages: $2 to container $1 ..."
+    # Installs into the user's ~/.local (CONTAINER_USER, default deamen), not root's
+    local user=${CONTAINER_USER:-deamen}
+    echo "Installing pip packages: $2 to container $1 for ${user} ..."
     local ctr="$1"
     shift
     local packages=("$@")
-    buildah run "$ctr" pipx install "${packages[@]}"
+    buildah run --user "$user" --env HOME="/home/$user" --workingdir "/home/$user" "$ctr" pipx install "${packages[@]}"
 }
 
 set_default_cmd() {

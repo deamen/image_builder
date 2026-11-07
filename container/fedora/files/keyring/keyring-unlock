@@ -1,0 +1,70 @@
+#!/bin/bash
+# Start a D-Bus session bus and gnome-keyring for the current (non-root) user, unlocking
+# with a password typed at the prompt. Nothing is stored: the bus and the keyring live in
+# /run (tmpfs), so they are discarded when the container stops. The first run creates the
+# login keyring protected by the password you type.
+set -euo pipefail
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "keyring-unlock: run as the non-root user, not root" >&2
+    exit 1
+fi
+
+uid=$(id -u)
+export HOME
+HOME=$(getent passwd "$uid" | cut -d: -f6)
+export XDG_RUNTIME_DIR=/run/user/$uid
+export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+export XDG_DATA_HOME=/run/keyring/$uid
+export XDG_CONFIG_HOME=$XDG_RUNTIME_DIR/config
+export XDG_CACHE_HOME=$XDG_RUNTIME_DIR/cache
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
+
+bus_alive() {
+    gdbus call --session -d org.freedesktop.DBus -o /org/freedesktop/DBus \
+        -m org.freedesktop.DBus.GetId >/dev/null 2>&1
+}
+
+# NameHasOwner does not trigger D-Bus activation, so polling it cannot start a second daemon
+secrets_owned() {
+    gdbus call --session -d org.freedesktop.DBus -o /org/freedesktop/DBus \
+        -m org.freedesktop.DBus.NameHasOwner org.freedesktop.secrets 2>/dev/null | grep -q true
+}
+
+login_locked_state() {
+    gdbus call --session -d org.freedesktop.secrets \
+        -o /org/freedesktop/secrets/collection/login \
+        -m org.freedesktop.DBus.Properties.Get org.freedesktop.Secret.Collection Locked \
+        2>/dev/null || true
+}
+
+# Session bus (daemonises). Reuse a live one; replace a stale socket left by a dead daemon.
+if ! bus_alive; then
+    rm -f "$XDG_RUNTIME_DIR/bus"
+    dbus-daemon --session --address="$DBUS_SESSION_BUS_ADDRESS" --fork --nopidfile
+fi
+
+if secrets_owned && [[ "$(login_locked_state)" == *"<false>"* ]]; then
+    echo "keyring already unlocked."
+    exit 0
+fi
+
+read -rsp "Keyring password: " password
+echo
+
+# --replace takes over from any daemon already running, so reruns do not pile up daemons.
+# gnome-keyring exits 0 even on a wrong password, so the lock state is checked afterwards.
+printf '%s' "$password" | gnome-keyring-daemon --replace --unlock --components=secrets >/dev/null 2>&1
+unset password
+
+for _ in $(seq 1 50); do
+    if secrets_owned; then
+        case "$(login_locked_state)" in
+            *"<false>"*) echo "keyring unlocked. New login shells pick up DBUS_SESSION_BUS_ADDRESS automatically."; exit 0 ;;
+            *"<true>"*) echo "keyring-unlock: wrong password" >&2; exit 1 ;;
+        esac
+    fi
+    sleep 0.1
+done
+echo "keyring-unlock: login keyring not available" >&2
+exit 1
