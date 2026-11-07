@@ -67,11 +67,11 @@ fileExistenceTests:
     path: '/home/deamen/.ansible_vault.yml'
     shouldExist: true
     permissions: '-rw-------'
-  - name: 'keyring-unlock command'
+  - name: 'keyring-unlock deployed by deamen.general.configure_keyring'
     path: '/usr/local/bin/keyring-unlock'
     shouldExist: true
     permissions: '-rwxr-xr-x'
-  - name: 'keyring D-Bus profile snippet'
+  - name: 'keyring D-Bus profile snippet deployed by deamen.general.configure_keyring'
     path: '/etc/profile.d/keyring-bus.sh'
     shouldExist: true
 
@@ -94,9 +94,9 @@ fileContentTests:
   - name: 'Proton Pass CLI stores its session key in a file'
     path: '/home/deamen/.bashrc.d/proton_pass_cli.sh'
     expectedContents: ['export PROTON_PASS_KEY_PROVIDER=fs']
-  - name: 'keyring runtime dirs created at boot for deamen (uid 1000)'
-    path: '/usr/lib/tmpfiles.d/keyring.conf'
-    expectedContents: ['d /run/user/1000 0700 deamen deamen -', 'd /run/keyring/1000 0700 deamen deamen -']
+  - name: 'keyring runtime dir created at boot for deamen by deamen.general.configure_keyring'
+    path: '/etc/tmpfiles.d/keyring.conf'
+    expectedContents: ['d /run/user/1000 0700 1000 1000 -']
 
 commandTests:
   - name: 'ansible version'
@@ -169,8 +169,8 @@ commandTests:
     expectedOutput: ['tar', 'gzip', 'procps-ng', 'which']
   - name: 'keyring packages installed'
     command: 'rpm'
-    args: ['-q', 'dbus-daemon', 'dbus-tools', 'gnome-keyring', 'libsecret']
-    expectedOutput: ['dbus-daemon', 'dbus-tools', 'gnome-keyring', 'libsecret']
+    args: ['-q', 'dbus-daemon', 'dbus-tools', 'glib2', 'gnome-keyring', 'libsecret']
+    expectedOutput: ['dbus-daemon', 'dbus-tools', 'glib2', 'gnome-keyring', 'libsecret']
   - name: 'git prompt loaded in login shell'
     command: 'sudo'
     args: ['-u', 'deamen', 'bash', '-lc', 'type -t __git_ps1']
