@@ -37,7 +37,7 @@ buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
 buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections ${DEAMEN_COLLECTIONS}
 ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3)
 # Set up the full Ansible dev environment as the user (dev packages, git prompt, aliases, ~/Prj,
-# Copilot CLI, podman, linear-cli); system-wide tasks escalate through the passwordless sudo above
+# Copilot CLI, podman, Claude Code, linear-cli and its skill); system-wide tasks escalate through the passwordless sudo above
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
     "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_ansible_development_env
 # Install GPG and deploy gpg-agent.conf for the user. Never import a key here: the image is public,
