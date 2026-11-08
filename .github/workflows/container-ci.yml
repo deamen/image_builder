@@ -50,6 +50,11 @@ jobs:
               - *fedora-init
               - 'container/fedora/buildah_fedora-codespace.sh'
               - 'container/fedora/tests/container-structure-test_fedora-codespace.yml'
+            # Built on top of fedora-init too
+            fedora-molecule:
+              - *fedora-init
+              - 'container/fedora/buildah_fedora-molecule.sh'
+              - 'container/fedora/tests/container-structure-test_fedora-molecule.yml'
 
   build:
     needs: changes
