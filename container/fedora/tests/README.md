@@ -77,6 +77,18 @@ Requires `pytest` and `pytest-testinfra` (`pip install pytest-testinfra`), plus 
 make pytest-fedora-init IMAGE=quay.io/deamen/fedora-init-amd64:latest
 ```
 
+## CI
+
+`.github/workflows/container-ci.yml` runs these tests on every PR to `master`. It builds each
+changed image for amd64 with buildah (fedora-init first, since the other images are built on it),
+then runs every target from `make list-tests` that ends in `-<image>`, with
+`IMAGE=quay.io/deamen/<image>-amd64:latest`. So a new test file is picked up automatically, as long
+as its name ends in the image name.
+
+A new image needs a filter in the workflow's `changes` job, named after its
+`buildah_<image>.sh` script, listing the files that should rebuild it. Only the `container-ci` gate
+job is a required check, so no ruleset change is needed. `fedora-dst` is not built in CI.
+
 ## Notes
 
 - `all` is aliased to `tests`.
