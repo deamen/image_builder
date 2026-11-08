@@ -1,0 +1,37 @@
+schemaVersion: 2.0.0
+
+# fedora-molecule is fedora-init plus the packages ansible needs to manage it, so check that the
+# fedora-init setup is inherited and the extra packages work. The stop signal (SIGRTMIN+3) is also
+# inherited but container-structure-test can't assert it.
+metadataTest:
+  entrypoint:
+    - "/sbin/init"
+  cmd: []
+  labels:
+    - key: 'org.opencontainers.image.title'
+      value: 'fedora-molecule'
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/deamen/image_builder'
+
+fileExistenceTests:
+  - name: 'systemd binary inherited from fedora-init'
+    path: '/usr/lib/systemd/systemd'
+    shouldExist: true
+  - name: 'init symlink inherited from fedora-init'
+    path: '/sbin/init'
+    shouldExist: true
+
+fileContentTests:
+  - name: 'OS is Fedora'
+    path: '/etc/os-release'
+    expectedContents: ['NAME="Fedora Linux"', 'ID=fedora']
+
+commandTests:
+  - name: 'expected packages installed'
+    command: 'rpm'
+    args: ['-q', 'sudo', 'python3-dnf', 'python3-libdnf5']
+    expectedOutput: ['sudo', 'python3-dnf', 'python3-libdnf5']
+  - name: 'dnf python bindings importable for ansible'
+    command: 'python3'
+    args: ['-c', 'import dnf, libdnf5; print("ok")']
+    expectedOutput: ['(?m)^ok$']
