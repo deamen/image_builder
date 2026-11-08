@@ -1,0 +1,28 @@
+# Images built, tested and published by .github/workflows/container-ci.yml, with the files
+# that should rebuild each one (dorny/paths-filter filters).
+#
+# Each key must match container/fedora/buildah_<key>.sh and is published as
+# quay.io/deamen/<key>:latest. Scheduled and manual runs build every key listed here.
+# fedora-dst is left out: it pulls several GB of game files.
+
+fedora-init: &fedora-init
+  - '.github/container-images.yml'
+  - '.github/workflows/container-ci.yml'
+  - 'container/helper_scripts/buildah_multiarch.sh'
+  - 'container/fedora/tests/Makefile'
+  - 'container/fedora/fedora_vars.sh'
+  - 'container/fedora/buildah_fedora-init.sh'
+  - 'container/fedora/tests/container-structure-test_fedora-init.yml'
+  - 'container/fedora/tests/test_fedora-init.py'
+  - 'container/fedora/tests/Containerfile.sshd'
+
+# Built on top of fedora-init, so anything that rebuilds fedora-init rebuilds these too
+fedora-codespace:
+  - *fedora-init
+  - 'container/fedora/buildah_fedora-codespace.sh'
+  - 'container/fedora/tests/container-structure-test_fedora-codespace.yml'
+
+fedora-molecule:
+  - *fedora-init
+  - 'container/fedora/buildah_fedora-molecule.sh'
+  - 'container/fedora/tests/container-structure-test_fedora-molecule.yml'

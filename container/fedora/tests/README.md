@@ -86,9 +86,13 @@ then runs every target from `make list-tests` that ends in `-<image>`, with
 `IMAGE=quay.io/deamen/<image>-amd64:latest`. So a new test file is picked up automatically, as long
 as its name ends in the image name.
 
-A new image needs a filter in the workflow's `changes` job, named after its
-`buildah_<image>.sh` script, listing the files that should rebuild it. Only the `container-ci` gate
-job is a required check, so no ruleset change is needed. `fedora-dst` is not built in CI.
+On push to `master`, the same workflow tests the changed images, builds them for arm64 too, and
+pushes a multi-arch `quay.io/deamen/<image>:latest`. A weekly scheduled run, or a manual run, does
+this for every image.
+
+A new image needs an entry in `.github/container-images.yml`, named after its `buildah_<image>.sh`
+script, listing the files that should rebuild it. Only the `container-ci` gate job is a required
+check, so no ruleset change is needed. `fedora-dst` is not built in CI.
 
 ## Notes
 

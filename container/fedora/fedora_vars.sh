@@ -6,9 +6,10 @@ BASE_CONTAINER="buildah from --arch $ARCH $BASE_IMAGE"
 AUTHORS="deamen"
 REGISTRY_URL="quay.io/deamen"
 # Must match the IMAGE_NAME produced by buildah_fedora-init.sh, so images built
-# on top of it use the locally built fedora-init rather than the stale,
-# unsuffixed quay.io/deamen/fedora-init:latest. fedora-init-${ARCH} is not
-# published, so build it first (`make container.fedora-dst` does this).
+# on top of it use the locally built fedora-init rather than the published
+# multi-arch quay.io/deamen/fedora-init:latest, which may be older. The per-arch
+# fedora-init-${ARCH} is not published, so build it first
+# (`make container.fedora-dst` does this).
 INIT_IMAGE="${REGISTRY_URL}/fedora-init-${ARCH}:latest"
 INIT_CONTAINER="buildah from --arch $ARCH $INIT_IMAGE"
 IMAGE_SOURCE="${IMAGE_SOURCE:-https://github.com/deamen/image_builder}"
