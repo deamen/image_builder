@@ -1,7 +1,16 @@
 name: Container CI
 
-# Builds the container images a PR changes and runs their tests (everything in
-# container/fedora/tests whose make target ends in -<image>). Nothing is pushed.
+# Builds container images, runs their tests (everything in container/fedora/tests whose make
+# target ends in -<image>), and publishes them to quay.io.
+#
+# - pull_request: builds and tests the images the PR changes, amd64 only. Nothing is pushed.
+# - push to master: same for the images the push changes, plus an arm64 build and a push of the
+#   multi-arch manifest to quay.io/deamen/<image>:latest.
+# - schedule (weekly) and workflow_dispatch: every image, built, tested and pushed. The weekly
+#   rebuild picks up Fedora updates and the unpinned deamen collections in fedora-codespace.
+#   A manual run on a branch other than master builds both arches but doesn't push.
+#
+# The images, and the files that rebuild each one, are listed in .github/container-images.yml.
 #
 # Only the "container-ci" job is a required status check on master. Do not add a
 # workflow-level paths: filter: a workflow that never runs never reports its
@@ -12,13 +21,20 @@ on:
   pull_request:
     branches:
       - master
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: container-ci-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: container-ci-${{ github.event.pull_request.number || github.ref }}
+  # Supersede outdated PR runs, but never cancel a publish halfway through
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -28,46 +44,47 @@ jobs:
       # dorny/paths-filter lists the PR's files through the API
       pull-requests: read
     outputs:
-      images: ${{ steps.filter.outputs.changes }}
+      images: ${{ steps.images.outputs.images }}
     steps:
-      # Each filter name must match container/fedora/buildah_<name>.sh.
-      # fedora-dst is left out: it pulls several GB of game files.
+      # The filters file, and on push the commit range to compare
+      - uses: actions/checkout@v7.0.1
+
       - uses: dorny/paths-filter@v4.0.3
         id: filter
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         with:
-          filters: |
-            fedora-init: &fedora-init
-              - '.github/workflows/container-ci.yml'
-              - 'container/fedora/tests/Makefile'
-              - 'container/fedora/fedora_vars.sh'
-              - 'container/fedora/buildah_fedora-init.sh'
-              - 'container/fedora/tests/container-structure-test_fedora-init.yml'
-              - 'container/fedora/tests/test_fedora-init.py'
-              - 'container/fedora/tests/Containerfile.sshd'
-            # Built on top of fedora-init, so anything that rebuilds fedora-init
-            # rebuilds this too
-            fedora-codespace:
-              - *fedora-init
-              - 'container/fedora/buildah_fedora-codespace.sh'
-              - 'container/fedora/tests/container-structure-test_fedora-codespace.yml'
-            # Built on top of fedora-init too
-            fedora-molecule:
-              - *fedora-init
-              - 'container/fedora/buildah_fedora-molecule.sh'
-              - 'container/fedora/tests/container-structure-test_fedora-molecule.yml'
+          filters: .github/container-images.yml
+
+      - name: Select images
+        id: images
+        env:
+          EVENT: ${{ github.event_name }}
+          CHANGED: ${{ steps.filter.outputs.changes }}
+        run: |
+          if [ "$EVENT" = pull_request ] || [ "$EVENT" = push ]; then
+            images=$CHANGED
+          else
+            images=$(yq -o=json -I=0 'keys' .github/container-images.yml)
+          fi
+          echo "Images: $images"
+          echo "images=$images" >> "$GITHUB_OUTPUT"
 
   build:
     needs: changes
     if: needs.changes.outputs.images != '[]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    # arm64 builds run under qemu emulation
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 90 || 240 }}
     strategy:
       fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.changes.outputs.images) }}
     env:
-      ARCH: amd64
       IMAGE: quay.io/deamen/${{ matrix.image }}-amd64:latest
+      # PRs build and test amd64 only. Other runs also build arm64, and push only from master
+      # (a manual run on another branch builds both arches without pushing)
+      MULTIARCH: ${{ github.event_name != 'pull_request' }}
+      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
       CST_VERSION: v1.22.1
       CST_SHA256: fa35e89512a8978585f76cf41397956d2e3a30c62c2ad3fb857b1597074d14ca
     steps:
@@ -80,12 +97,12 @@ jobs:
 
       # Every other image is built FROM the local fedora-init-${ARCH} (INIT_IMAGE
       # in fedora_vars.sh), which is never published, so always build it first
-      - name: Build fedora-init
-        run: ./container/fedora/buildah_fedora-init.sh
+      - name: Build fedora-init (amd64)
+        run: ARCH=amd64 ./container/fedora/buildah_fedora-init.sh
 
-      - name: Build ${{ matrix.image }}
+      - name: Build ${{ matrix.image }} (amd64)
         if: matrix.image != 'fedora-init'
-        run: ./container/fedora/buildah_${{ matrix.image }}.sh
+        run: ARCH=amd64 ./container/fedora/buildah_${{ matrix.image }}.sh
 
       - name: Install container-structure-test
         run: |
@@ -118,6 +135,33 @@ jobs:
             exit 1
           fi
           make "${targets[@]}" IMAGE="$IMAGE"
+
+      # Only the amd64 image is tested; arm64 is built and published after it passes
+      - name: Free the Docker copy
+        if: env.MULTIARCH == 'true'
+        run: docker rmi "$IMAGE"
+
+      - name: Build fedora-init (arm64)
+        if: env.MULTIARCH == 'true'
+        run: ARCH=arm64 ./container/fedora/buildah_fedora-init.sh
+
+      - name: Build ${{ matrix.image }} (arm64)
+        if: env.MULTIARCH == 'true' && matrix.image != 'fedora-init'
+        run: ARCH=arm64 ./container/fedora/buildah_${{ matrix.image }}.sh
+
+      - name: Log in to the registry
+        if: env.PUBLISH == 'true'
+        env:
+          REGISTRY_USERNAME: ${{ vars.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          REGISTRY_SERVER: ${{ vars.REGISTRY_SERVER }}
+        run: |
+          echo "$REGISTRY_PASSWORD" | buildah login \
+            --username "$REGISTRY_USERNAME" --password-stdin "$REGISTRY_SERVER"
+
+      - name: Push the multi-arch manifest
+        if: env.PUBLISH == 'true'
+        run: ./container/helper_scripts/buildah_multiarch.sh "quay.io/deamen/${{ matrix.image }}"
 
   # The single required check. Fails if any job it needs failed or was cancelled;
   # skipped jobs (no image changed) count as passing.
