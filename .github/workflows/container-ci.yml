@@ -4,11 +4,12 @@ name: Container CI
 # target ends in -<image>), and publishes them to quay.io.
 #
 # - pull_request: builds and tests the images the PR changes, amd64 only. Nothing is pushed.
-# - push to master: same for the images the push changes, plus an arm64 build and a push of the
-#   multi-arch manifest to quay.io/deamen/<image>:latest.
-# - schedule (weekly) and workflow_dispatch: every image, built, tested and pushed. The weekly
-#   rebuild picks up Fedora updates and the unpinned deamen collections in fedora-codespace.
-#   A manual run on a branch other than master builds both arches but doesn't push.
+# - push to master: builds and tests the images the push changes for amd64 and arm64, each on a
+#   native runner, pushes them as quay.io/deamen/<image>:latest-<arch>, then combines them into
+#   the multi-arch quay.io/deamen/<image>:latest.
+# - schedule (weekly) and workflow_dispatch: the same for every image. The weekly rebuild picks
+#   up Fedora updates and the unpinned deamen collections in fedora-codespace. A manual run on a
+#   branch other than master builds and tests both arches but doesn't push.
 #   workflow_dispatch with a base commit only handles the images changed since it. auto-merge.yml
 #   starts that after each merge, because the push of a merge made with GITHUB_TOKEN doesn't
 #   trigger workflows.
@@ -18,7 +19,7 @@ name: Container CI
 # Only the "container-ci" job is a required status check on master. Do not add a
 # workflow-level paths: filter: a workflow that never runs never reports its
 # required check, and the PR stays blocked. Changed images are detected in the
-# "changes" job instead, and a skipped "build" job counts as passing.
+# "changes" job instead, and skipped "build" and "publish" jobs count as passing.
 
 on:
   pull_request:
@@ -44,6 +45,10 @@ concurrency:
   # Supersede outdated PR runs, but never cancel a publish halfway through
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # Push only from master, and never from a PR
+  PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -53,6 +58,7 @@ jobs:
       pull-requests: read
     outputs:
       images: ${{ steps.images.outputs.images }}
+      matrix: ${{ steps.images.outputs.matrix }}
     steps:
       # The filters file, and on push the commit range to compare
       - uses: actions/checkout@v7.0.1
@@ -65,6 +71,7 @@ jobs:
           # Empty except on workflow_dispatch with a base, so the other events keep their default
           base: ${{ inputs.base }}
 
+      # Builds every selected image for each arch on a native runner: amd64 only on PRs
       - name: Select images
         id: images
         env:
@@ -77,48 +84,64 @@ jobs:
           else
             images=$(yq -o=json -I=0 'keys' .github/container-images.yml)
           fi
+          if [ "$EVENT" = pull_request ]; then
+            arches='["amd64"]'
+          else
+            arches='["amd64","arm64"]'
+          fi
+          matrix=$(jq -cn --argjson images "$images" --argjson arches "$arches" '
+            {include: [$images[] as $image | $arches[] as $arch | {
+              image: $image,
+              arch: $arch,
+              runner: (if $arch == "arm64" then "ubuntu-24.04-arm" else "ubuntu-24.04" end)
+            }]}')
           echo "Images: $images"
+          echo "Matrix: $matrix"
           echo "images=$images" >> "$GITHUB_OUTPUT"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   build:
+    name: build (${{ matrix.image }}, ${{ matrix.arch }})
     needs: changes
     if: needs.changes.outputs.images != '[]'
-    runs-on: ubuntu-24.04
-    # arm64 builds run under qemu emulation
-    timeout-minutes: ${{ github.event_name == 'pull_request' && 90 || 240 }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
-      matrix:
-        image: ${{ fromJSON(needs.changes.outputs.images) }}
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     env:
-      IMAGE: quay.io/deamen/${{ matrix.image }}-amd64:latest
-      # PRs build and test amd64 only. Other runs also build arm64, and push only from master
-      # (a manual run on another branch builds both arches without pushing)
-      MULTIARCH: ${{ github.event_name != 'pull_request' }}
-      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+      ARCH: ${{ matrix.arch }}
+      IMAGE: quay.io/deamen/${{ matrix.image }}-${{ matrix.arch }}:latest
       CST_VERSION: v1.22.1
-      CST_SHA256: fa35e89512a8978585f76cf41397956d2e3a30c62c2ad3fb857b1597074d14ca
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Setup buildah
-        uses: deamen/gh-actions/setup-buildah@master
-        with:
-          os: 'ubuntu'
+      # Native builds, so no qemu. podman runs the pytest checks and shares buildah's storage.
+      - name: Install buildah and podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y buildah podman
+          # Rootless buildah needs subordinate ids for the runner user
+          user=$(id -un)
+          if ! grep -q "^${user}:" /etc/subuid; then
+            echo "${user}:100000:65536" | sudo tee -a /etc/subuid /etc/subgid
+          fi
 
       # Every other image is built FROM the local fedora-init-${ARCH} (INIT_IMAGE
       # in fedora_vars.sh), which is never published, so always build it first
-      - name: Build fedora-init (amd64)
-        run: ARCH=amd64 ./container/fedora/buildah_fedora-init.sh
+      - name: Build fedora-init
+        run: ./container/fedora/buildah_fedora-init.sh
 
-      - name: Build ${{ matrix.image }} (amd64)
+      - name: Build ${{ matrix.image }}
         if: matrix.image != 'fedora-init'
-        run: ARCH=amd64 ./container/fedora/buildah_${{ matrix.image }}.sh
+        run: ./container/fedora/buildah_${{ matrix.image }}.sh
 
       - name: Install container-structure-test
+        env:
+          CST_SHA256: ${{ matrix.arch == 'arm64' && '801826ed107222120eb6df8c143b7de752cfebbe3aebfeea576e7098486917c2' || 'fa35e89512a8978585f76cf41397956d2e3a30c62c2ad3fb857b1597074d14ca' }}
         run: |
           curl -fsSL --retry 5 --retry-all-errors -o container-structure-test \
-            "https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}/container-structure-test-linux-amd64"
+            "https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}/container-structure-test-linux-${ARCH}"
           echo "${CST_SHA256}  container-structure-test" | sha256sum -c -
           sudo install -m 0755 container-structure-test /usr/local/bin/
           rm container-structure-test
@@ -127,8 +150,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      # The pytest checks build and run their own containers with podman, which
-      # is preinstalled on the runner and shares buildah's image storage
       - name: Install pytest
         run: pip install pytest pytest-testinfra
 
@@ -147,19 +168,6 @@ jobs:
           fi
           make "${targets[@]}" IMAGE="$IMAGE"
 
-      # Only the amd64 image is tested; arm64 is built and published after it passes
-      - name: Free the Docker copy
-        if: env.MULTIARCH == 'true'
-        run: docker rmi "$IMAGE"
-
-      - name: Build fedora-init (arm64)
-        if: env.MULTIARCH == 'true'
-        run: ARCH=arm64 ./container/fedora/buildah_fedora-init.sh
-
-      - name: Build ${{ matrix.image }} (arm64)
-        if: env.MULTIARCH == 'true' && matrix.image != 'fedora-init'
-        run: ARCH=arm64 ./container/fedora/buildah_${{ matrix.image }}.sh
-
       - name: Log in to the registry
         if: env.PUBLISH == 'true'
         env:
@@ -170,15 +178,77 @@ jobs:
           echo "$REGISTRY_PASSWORD" | buildah login \
             --username "$REGISTRY_USERNAME" --password-stdin "$REGISTRY_SERVER"
 
-      - name: Push the multi-arch manifest
+      # Push this arch on its own tag and record its digest, so the publish job combines exactly
+      # the images built in this run
+      - name: Push ${{ matrix.image }}:latest-${{ matrix.arch }}
         if: env.PUBLISH == 'true'
-        run: ./container/helper_scripts/buildah_multiarch.sh "quay.io/deamen/${{ matrix.image }}"
+        run: |
+          mkdir -p digests
+          buildah push --digestfile "digests/${{ matrix.image }}-${ARCH}" \
+            "$IMAGE" "docker://quay.io/deamen/${{ matrix.image }}:latest-${ARCH}"
+          cat "digests/${{ matrix.image }}-${ARCH}"
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: env.PUBLISH == 'true'
+        with:
+          name: digest-${{ matrix.image }}-${{ matrix.arch }}
+          path: digests/${{ matrix.image }}-${{ matrix.arch }}
+          retention-days: 1
+
+  # Combines the per-arch images of each image into quay.io/deamen/<image>:latest. Runs per image
+  # even if another image failed, but only if both arches of this image were pushed in this run.
+  publish:
+    needs: [changes, build]
+    if: >
+      always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/master' &&
+      needs.changes.result == 'success' && needs.changes.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.changes.outputs.images) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          path: digests
+          merge-multiple: true
+
+      - name: Install buildah
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y buildah
+
+      - name: Log in to the registry
+        env:
+          REGISTRY_USERNAME: ${{ vars.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          REGISTRY_SERVER: ${{ vars.REGISTRY_SERVER }}
+        run: |
+          echo "$REGISTRY_PASSWORD" | buildah login \
+            --username "$REGISTRY_USERNAME" --password-stdin "$REGISTRY_SERVER"
+
+      - name: Push the multi-arch manifest
+        run: |
+          repo="quay.io/deamen/${{ matrix.image }}"
+          sources=()
+          for arch in amd64 arm64; do
+            file="digests/${{ matrix.image }}-${arch}"
+            if [ ! -s "$file" ]; then
+              echo "::error::${{ matrix.image }} ${arch} was not built and pushed in this run"
+              exit 1
+            fi
+            sources+=("docker://${repo}@$(cat "$file")")
+          done
+          ./container/helper_scripts/buildah_multiarch.sh "$repo" "${sources[@]}"
 
   # The single required check. Fails if any job it needs failed or was cancelled;
-  # skipped jobs (no image changed) count as passing.
+  # skipped jobs (no image changed, or nothing to publish) count as passing.
   container-ci:
     if: always()
-    needs: [changes, build]
+    needs: [changes, build, publish]
     runs-on: ubuntu-latest
     steps:
       - name: Check job results

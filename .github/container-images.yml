@@ -1,8 +1,9 @@
 # Images built, tested and published by .github/workflows/container-ci.yml, with the files
 # that should rebuild each one (dorny/paths-filter filters).
 #
-# Each key must match container/fedora/buildah_<key>.sh and is published as
-# quay.io/deamen/<key>:latest. Scheduled and manual runs build every key listed here.
+# Each key must match container/fedora/buildah_<key>.sh and is published as the multi-arch
+# quay.io/deamen/<key>:latest, built from quay.io/deamen/<key>:latest-amd64 and :latest-arm64.
+# Scheduled and manual runs build every key listed here.
 # fedora-dst is left out: it pulls several GB of game files.
 
 fedora-init: &fedora-init

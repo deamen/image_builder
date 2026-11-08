@@ -86,9 +86,10 @@ then runs every target from `make list-tests` that ends in `-<image>`, with
 `IMAGE=quay.io/deamen/<image>-amd64:latest`. So a new test file is picked up automatically, as long
 as its name ends in the image name.
 
-On push to `master`, the same workflow tests the changed images, builds them for arm64 too, and
-pushes a multi-arch `quay.io/deamen/<image>:latest`. A weekly scheduled run, or a manual run, does
-this for every image.
+After a merge to `master`, the same workflow builds and tests the changed images for amd64 and
+arm64, each on a native runner. It pushes them as `quay.io/deamen/<image>:latest-<arch>`, then
+combines them into the multi-arch `quay.io/deamen/<image>:latest`. A weekly scheduled run, or a
+manual run, does this for every image.
 
 A new image needs an entry in `.github/container-images.yml`, named after its `buildah_<image>.sh`
 script, listing the files that should rebuild it. Only the `container-ci` gate job is a required
