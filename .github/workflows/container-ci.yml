@@ -1,0 +1,134 @@
+name: Container CI
+
+# Builds the container images a PR changes and runs their tests (everything in
+# container/fedora/tests whose make target ends in -<image>). Nothing is pushed.
+#
+# Only the "container-ci" job is a required status check on master. Do not add a
+# workflow-level paths: filter: a workflow that never runs never reports its
+# required check, and the PR stays blocked. Changed images are detected in the
+# "changes" job instead, and a skipped "build" job counts as passing.
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # dorny/paths-filter lists the PR's files through the API
+      pull-requests: read
+    outputs:
+      images: ${{ steps.filter.outputs.changes }}
+    steps:
+      # Each filter name must match container/fedora/buildah_<name>.sh.
+      # fedora-dst is left out: it pulls several GB of game files.
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            fedora-init: &fedora-init
+              - '.github/workflows/container-ci.yml'
+              - 'container/fedora/tests/Makefile'
+              - 'container/fedora/fedora_vars.sh'
+              - 'container/fedora/buildah_fedora-init.sh'
+              - 'container/fedora/tests/container-structure-test_fedora-init.yml'
+              - 'container/fedora/tests/test_fedora-init.py'
+              - 'container/fedora/tests/Containerfile.sshd'
+            # Built on top of fedora-init, so anything that rebuilds fedora-init
+            # rebuilds this too
+            fedora-codespace:
+              - *fedora-init
+              - 'container/fedora/buildah_fedora-codespace.sh'
+              - 'container/fedora/tests/container-structure-test_fedora-codespace.yml'
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.images != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.changes.outputs.images) }}
+    env:
+      ARCH: amd64
+      IMAGE: quay.io/deamen/${{ matrix.image }}-amd64:latest
+      CST_VERSION: v1.22.1
+      CST_SHA256: fa35e89512a8978585f76cf41397956d2e3a30c62c2ad3fb857b1597074d14ca
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Setup buildah
+        uses: deamen/gh-actions/setup-buildah@master
+        with:
+          os: 'ubuntu'
+
+      # Every other image is built FROM the local fedora-init-${ARCH} (INIT_IMAGE
+      # in fedora_vars.sh), which is never published, so always build it first
+      - name: Build fedora-init
+        run: ./container/fedora/buildah_fedora-init.sh
+
+      - name: Build ${{ matrix.image }}
+        if: matrix.image != 'fedora-init'
+        run: ./container/fedora/buildah_${{ matrix.image }}.sh
+
+      - name: Install container-structure-test
+        run: |
+          curl -fsSLo container-structure-test \
+            "https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}/container-structure-test-linux-amd64"
+          echo "${CST_SHA256}  container-structure-test" | sha256sum -c -
+          sudo install -m 0755 container-structure-test /usr/local/bin/
+          rm container-structure-test
+
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+
+      # The pytest checks build and run their own containers with podman, which
+      # is preinstalled on the runner and shares buildah's image storage
+      - name: Install pytest
+        run: pip install pytest pytest-testinfra
+
+      # container-structure-test runs images through the Docker daemon, while
+      # buildah builds into containers-storage
+      - name: Copy the image to the Docker daemon
+        run: buildah push "$IMAGE" "docker-daemon:$IMAGE"
+
+      - name: Test ${{ matrix.image }}
+        working-directory: container/fedora/tests
+        run: |
+          mapfile -t targets < <(make --no-print-directory list-tests | grep -- "-${{ matrix.image }}$")
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "::error::No tests found for ${{ matrix.image }}"
+            exit 1
+          fi
+          make "${targets[@]}" IMAGE="$IMAGE"
+
+  # The single required check. Fails if any job it needs failed or was cancelled;
+  # skipped jobs (no image changed) count as passing.
+  container-ci:
+    if: always()
+    needs: [changes, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::A required job finished with: $result"; exit 1 ;;
+            esac
+          done

@@ -7,10 +7,11 @@ name: Enable Auto-Merge for Owner PRs
 # Requires, in the repository settings:
 #   - General -> "Allow auto-merge" enabled
 #   - General -> "Allow rebase merging" enabled
-#   - A ruleset on master with the required status checks (e.g.
-#     "pre-commit.ci - pr"). Checks added later must be added to the ruleset by
-#     name. Without a required check there is nothing to wait for and the PR is
-#     merged immediately.
+#   - A ruleset on master with the required status checks: "pre-commit.ci - pr"
+#     and "container-ci" (the gate job in container-ci.yml, which covers every
+#     image, so adding an image needs no ruleset change). Other checks added
+#     later must be added to the ruleset by name. Without a required check there
+#     is nothing to wait for and the PR is merged immediately.
 
 on:
   pull_request:
