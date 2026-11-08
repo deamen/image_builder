@@ -25,6 +25,8 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
+      # Start container-ci on master after the merge (see the last step)
+      actions: write
     # Only same-repo, non-draft PRs opened by the repo owner
     if: >
       github.event.pull_request.user.login == github.repository_owner &&
@@ -36,6 +38,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
     steps:
       # --rebase (not --squash) keeps every PR commit, replayed onto master
       # without a merge commit
@@ -47,6 +50,7 @@ jobs:
       # "pull_request: closed" workflow would not run. Wait for the merge here
       # and delete the branch ourselves.
       - name: Delete branch after merge
+        id: merge
         run: |
           while :; do
             state=$(gh pr view "$PR_NUMBER" --json state --jq .state)
@@ -56,5 +60,19 @@ jobs:
             esac
             sleep 30
           done
+          echo "merged=true" >> "$GITHUB_OUTPUT"
           gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$HEAD_REF" --silent \
             || echo "Branch $HEAD_REF already deleted"
+
+      # For the same reason, container-ci's push trigger never fires for this
+      # merge, so nothing would be published. GITHUB_TOKEN may still trigger
+      # workflow_dispatch: start container-ci on master by hand, passing
+      # the PR's base commit so it only rebuilds and publishes the images the PR
+      # changed. If master moved on after that commit, the images those other
+      # merges changed are rebuilt too, which is harmless.
+      - name: Publish the merged images
+        if: steps.merge.outputs.merged == 'true' && env.BASE_REF == 'master'
+        run: |
+          base=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
+          echo "Starting container-ci on master for changes since $base"
+          gh workflow run container-ci.yml --ref master -f base="$base"

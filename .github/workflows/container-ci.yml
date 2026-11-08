@@ -9,6 +9,9 @@ name: Container CI
 # - schedule (weekly) and workflow_dispatch: every image, built, tested and pushed. The weekly
 #   rebuild picks up Fedora updates and the unpinned deamen collections in fedora-codespace.
 #   A manual run on a branch other than master builds both arches but doesn't push.
+#   workflow_dispatch with a base commit only handles the images changed since it. auto-merge.yml
+#   starts that after each merge, because the push of a merge made with GITHUB_TOKEN doesn't
+#   trigger workflows.
 #
 # The images, and the files that rebuild each one, are listed in .github/container-images.yml.
 #
@@ -27,6 +30,11 @@ on:
   schedule:
     - cron: '0 2 * * 0'
   workflow_dispatch:
+    inputs:
+      base:
+        description: 'Only build the images changed since this commit (default: every image)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -51,17 +59,20 @@ jobs:
 
       - uses: dorny/paths-filter@v4.0.3
         id: filter
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        if: github.event_name == 'pull_request' || github.event_name == 'push' || inputs.base != ''
         with:
           filters: .github/container-images.yml
+          # Empty except on workflow_dispatch with a base, so the other events keep their default
+          base: ${{ inputs.base }}
 
       - name: Select images
         id: images
         env:
           EVENT: ${{ github.event_name }}
+          BASE: ${{ inputs.base }}
           CHANGED: ${{ steps.filter.outputs.changes }}
         run: |
-          if [ "$EVENT" = pull_request ] || [ "$EVENT" = push ]; then
+          if [ "$EVENT" = pull_request ] || [ "$EVENT" = push ] || [ -n "$BASE" ]; then
             images=$CHANGED
           else
             images=$(yq -o=json -I=0 'keys' .github/container-images.yml)
