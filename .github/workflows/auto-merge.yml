@@ -1,8 +1,10 @@
 name: Enable Auto-Merge for Owner PRs
 
 # Turns on GitHub's native auto-merge for PRs opened by the repo owner, so GitHub
-# itself merges the PR once every required status check on master has passed,
-# then deletes the merged head branch.
+# itself merges the PR once every required status check on master has passed.
+# Branch cleanup and the image publish after the merge are done by
+# merged-owner-pr-cleanup.yml, which runs on a schedule, so this job does not
+# have to stay alive until the merge happens.
 #
 # Requires, in the repository settings:
 #   - General -> "Allow auto-merge" enabled
@@ -20,13 +22,10 @@ on:
 jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
-    # Bounds the wait for the merge in the last step
-    timeout-minutes: 60
+    timeout-minutes: 10
     permissions:
       pull-requests: write
       contents: write
-      # Start container-ci on master after the merge (see the last step)
-      actions: write
     # Only same-repo, non-draft PRs opened by the repo owner
     if: >
       github.event.pull_request.user.login == github.repository_owner &&
@@ -37,42 +36,8 @@ jobs:
       # Required so gh CLI knows the target repo without a checkout step
       GH_REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      HEAD_REF: ${{ github.event.pull_request.head.ref }}
-      BASE_REF: ${{ github.event.pull_request.base.ref }}
     steps:
       # --rebase (not --squash) keeps every PR commit, replayed onto master
       # without a merge commit
       - name: Enable auto-merge
         run: gh pr merge --auto --rebase "$PR_NUMBER"
-
-      # The merge is performed as github-actions (GITHUB_TOKEN), and events
-      # caused by GITHUB_TOKEN never trigger workflows, so a separate
-      # "pull_request: closed" workflow would not run. Wait for the merge here
-      # and delete the branch ourselves.
-      - name: Delete branch after merge
-        id: merge
-        run: |
-          while :; do
-            state=$(gh pr view "$PR_NUMBER" --json state --jq .state)
-            case "$state" in
-              MERGED) break ;;
-              CLOSED) echo "PR closed without merging, keeping branch"; exit 0 ;;
-            esac
-            sleep 30
-          done
-          echo "merged=true" >> "$GITHUB_OUTPUT"
-          gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$HEAD_REF" --silent \
-            || echo "Branch $HEAD_REF already deleted"
-
-      # For the same reason, container-ci's push trigger never fires for this
-      # merge, so nothing would be published. GITHUB_TOKEN may still trigger
-      # workflow_dispatch: start container-ci on master by hand, passing
-      # the PR's base commit so it only rebuilds and publishes the images the PR
-      # changed. If master moved on after that commit, the images those other
-      # merges changed are rebuilt too, which is harmless.
-      - name: Publish the merged images
-        if: steps.merge.outputs.merged == 'true' && env.BASE_REF == 'master'
-        run: |
-          base=$(gh pr view "$PR_NUMBER" --json baseRefOid --jq .baseRefOid)
-          echo "Starting container-ci on master for changes since $base"
-          gh workflow run container-ci.yml --ref master -f base="$base"
