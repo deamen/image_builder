@@ -1,0 +1,60 @@
+name: Clean Up Merged Owner PRs
+
+# Finishes owner PRs that auto-merge (see auto-merge.yml) has merged to master:
+# starts container-ci on master for the PR's changes, then deletes the head branch.
+#
+# Runs on a schedule rather than waiting for each merge, so nothing depends on a
+# job staying alive until the merge. A PR is picked up only while its head branch
+# still exists, and its branch is deleted only after the publish has been
+# started, so a failed start is retried on the next run.
+#
+# GITHUB_TOKEN merges and branch deletions do not trigger push or pull_request
+# workflows, so container-ci is started with workflow_dispatch instead.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Publish and delete branches of merged owner PRs
+        run: |
+          since=$(date -u -d '-2 days' +%F)
+          gh pr list --state merged --base master --limit 50 \
+            --search "merged:>=$since" \
+            --json number,headRefName,baseRefOid,author \
+            --jq '.[] | select(.author.login == env.OWNER) | @base64' |
+          while read -r row; do
+            pr=$(echo "$row" | base64 -d)
+            number=$(echo "$pr" | jq -r .number)
+            head=$(echo "$pr" | jq -r .headRefName)
+            base=$(echo "$pr" | jq -r .baseRefOid)
+
+            # Already cleaned up on an earlier run
+            if ! gh api "repos/$GH_REPO/git/ref/heads/$head" --silent 2>/dev/null; then
+              continue
+            fi
+
+            echo "PR #$number: starting container-ci on master for changes since $base"
+            if ! gh workflow run container-ci.yml --ref master -f base="$base"; then
+              echo "PR #$number: could not start container-ci, keeping $head for the next run"
+              continue
+            fi
+
+            gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$head" --silent \
+              && echo "PR #$number: deleted $head" \
+              || echo "PR #$number: could not delete $head"
+          done
