@@ -36,6 +36,13 @@ fileExistenceTests:
   - name: 'deamen.proton collection installed system-wide'
     path: '/usr/share/ansible/collections/ansible_collections/deamen/proton'
     shouldExist: true
+  - name: 'clone-dotclaude deployed for MMZ-15'
+    path: '/usr/local/bin/clone-dotclaude'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+  - name: 'no linear-cli marketplace registered at build time (the MMZ-15 clone must not find it)'
+    path: '/home/deamen/.claude/plugins/known_marketplaces.json'
+    shouldExist: false
   - name: 'Proton Drive CLI environment deployed by deamen.proton.install_proton_drive_cli'
     path: '/home/deamen/.bashrc.d/proton_drive_cli.sh'
     shouldExist: true
@@ -139,10 +146,6 @@ commandTests:
     command: 'linear'
     args: ['--version']
     expectedOutput: ['linear [0-9]']
-  - name: 'linear-cli skill installed in Claude Code for deamen'
-    command: 'sudo'
-    args: ['-u', 'deamen', 'bash', '-lc', 'claude plugin list --json']
-    expectedOutput: ['"id": "linear-cli@linear-cli"']
   - name: 'linear-cli skill installer for other agents'
     command: 'bash'
     args: ['-lc', 'test -x /usr/local/bin/install-linear-cli-skill && echo ok']
