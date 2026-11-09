@@ -4,8 +4,8 @@ set -e
 # A small target image for molecule tests: fedora-init plus only what ansible needs to manage it.
 # Keep it small: don't add anything molecule doesn't need.
 # sudo is needed for become; python3-dnf and python3-libdnf5 let the package/dnf modules work
-# with both dnf4 and dnf5
-MOLECULE_PACKAGES="sudo python3-dnf python3-libdnf5"
+# with both dnf4 and dnf5; util-linux provides runuser, which tests use to run commands as another user
+MOLECULE_PACKAGES="sudo python3-dnf python3-libdnf5 util-linux"
 
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-molecule}

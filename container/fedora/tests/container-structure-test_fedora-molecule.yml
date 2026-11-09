@@ -29,8 +29,12 @@ fileContentTests:
 commandTests:
   - name: 'expected packages installed'
     command: 'rpm'
-    args: ['-q', 'sudo', 'python3-dnf', 'python3-libdnf5']
-    expectedOutput: ['sudo', 'python3-dnf', 'python3-libdnf5']
+    args: ['-q', 'sudo', 'python3-dnf', 'python3-libdnf5', 'util-linux']
+    expectedOutput: ['sudo', 'python3-dnf', 'python3-libdnf5', 'util-linux']
+  - name: 'runuser available for running commands as another user'
+    command: 'runuser'
+    args: ['-u', 'root', '--', 'true']
+    exitCode: 0
   - name: 'dnf python bindings importable for ansible'
     command: 'python3'
     args: ['-c', 'import dnf, libdnf5; print("ok")']
