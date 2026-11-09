@@ -39,9 +39,11 @@ buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
 buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections ${DEAMEN_COLLECTIONS}
 ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3)
 # Set up the full Ansible dev environment as the user (dev packages, git prompt, aliases, ~/Prj,
-# Copilot CLI, podman, Claude Code, linear-cli and its skill); system-wide tasks escalate through the passwordless sudo above
+# Copilot CLI, podman, Claude Code, linear-cli); system-wide tasks escalate through the passwordless sudo above.
+# The linear-cli skill is not installed here: it is added at runtime after dotclaude is cloned into ~/.claude (MMZ-15)
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false deamen.ansible.configure_ansible_development_env
+    "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false -e linear_cli_claude_code_skill=false \
+    deamen.ansible.configure_ansible_development_env
 # Install GPG and deploy gpg-agent.conf for the user. Never import a key here: the image is public,
 # so keys are imported at runtime by running the same playbook against the container
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
@@ -65,6 +67,10 @@ buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --wo
 # as the container cannot reach the kernel keyring; sign in at runtime with "pass-cli login"
 buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
     ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_pass_cli
+
+# Deploy the script that clones deamen/dotclaude into ~/.claude at runtime (MMZ-15). It is copied in
+# rather than cloned here, because it has to exist before the dotclaude repository can be cloned
+buildah copy --chmod=0755 "$ctr" "$(dirname "$0")/files/clone_dotclaude.sh" /usr/local/bin/clone-dotclaude
 
 # Set the working directory. The default user stays root because systemd (PID 1) must run as
 # root; open shells as the user with `podman exec -u ${CONTAINER_USER} ...`
