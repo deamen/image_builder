@@ -81,6 +81,42 @@ fileExistenceTests:
   - name: 'keyring D-Bus profile snippet deployed by deamen.general.configure_keyring'
     path: '/etc/profile.d/keyring-bus.sh'
     shouldExist: true
+  - name: 'single-user keyring.conf moved to per-user files'
+    path: '/etc/tmpfiles.d/keyring.conf'
+    shouldExist: false
+  # rjdeamen is set up by the same steps as deamen
+  - name: 'detect-secrets installed via pipx for rjdeamen'
+    path: '/home/rjdeamen/.local/bin/detect-secrets'
+    shouldExist: true
+  - name: 'molecule installed via pipx for rjdeamen'
+    path: '/home/rjdeamen/.local/bin/molecule'
+    shouldExist: true
+  - name: 'Proton Drive CLI environment deployed for rjdeamen'
+    path: '/home/rjdeamen/.bashrc.d/proton_drive_cli.sh'
+    shouldExist: true
+    permissions: '-rw-r--r--'
+  - name: 'Proton Pass CLI environment deployed for rjdeamen'
+    path: '/home/rjdeamen/.bashrc.d/proton_pass_cli.sh'
+    shouldExist: true
+    permissions: '-rw-r--r--'
+  - name: 'Prj directory created by playbook for rjdeamen'
+    path: '/home/rjdeamen/Prj'
+    shouldExist: true
+    permissions: 'drwx------'
+  - name: 'Ref directory created by playbook for rjdeamen'
+    path: '/home/rjdeamen/Ref'
+    shouldExist: true
+  - name: 'GPG home created for rjdeamen'
+    path: '/home/rjdeamen/.gnupg'
+    shouldExist: true
+    permissions: 'drwx------'
+  - name: 'ansible vault stub deployed by playbook for rjdeamen'
+    path: '/home/rjdeamen/.ansible_vault.yml'
+    shouldExist: true
+    permissions: '-rw-------'
+  - name: 'no linear-cli marketplace registered at build time for rjdeamen'
+    path: '/home/rjdeamen/.claude/plugins/known_marketplaces.json'
+    shouldExist: false
 
 fileContentTests:
   - name: 'git prompt helper installed'
@@ -102,8 +138,23 @@ fileContentTests:
     path: '/home/deamen/.bashrc.d/proton_pass_cli.sh'
     expectedContents: ['export PROTON_PASS_KEY_PROVIDER=fs']
   - name: 'keyring runtime dir created at boot for deamen by deamen.general.configure_keyring'
-    path: '/etc/tmpfiles.d/keyring.conf'
+    path: '/etc/tmpfiles.d/keyring-deamen.conf'
     expectedContents: ['d /run/user/1000 0700 1000 1000 -']
+  - name: 'keyring runtime dir created at boot for rjdeamen by deamen.general.configure_keyring'
+    path: '/etc/tmpfiles.d/keyring-rjdeamen.conf'
+    expectedContents: ['d /run/user/1001 0700 1001 1001 -']
+  - name: 'rjdeamen has passwordless sudo'
+    path: '/etc/sudoers.d/rjdeamen'
+    expectedContents: ['rjdeamen ALL=\(ALL\) NOPASSWD:ALL']
+  - name: 'dev aliases deployed by playbook for rjdeamen'
+    path: '/home/rjdeamen/.bashrc.d/aliases.sh'
+    expectedContents: ['alias prj=']
+  - name: 'gpg-agent.conf deployed for rjdeamen'
+    path: '/home/rjdeamen/.gnupg/gpg-agent.conf'
+    expectedContents: ['default-cache-ttl 7200', 'max-cache-ttl 43200']
+  - name: 'himalaya password is read with gpg_cat.sh for rjdeamen'
+    path: '/home/rjdeamen/.config/himalaya/config.toml'
+    expectedContents: ['password.command = "/usr/local/bin/gpg_cat.sh --gpg_file /home/rjdeamen/.config/himalaya/selfhosted.gpg"']
 
 commandTests:
   - name: 'ansible version'
@@ -183,3 +234,35 @@ commandTests:
     command: 'sudo'
     args: ['-u', 'deamen', 'bash', '-lc', 'alias prj']
     expectedOutput: ['alias prj=']
+  - name: 'rjdeamen user has uid 1001'
+    command: 'id'
+    args: ['-u', 'rjdeamen']
+    expectedOutput: ['1001']
+  - name: 'Copilot CLI installed for rjdeamen'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'bash', '-lc', 'command -v copilot']
+    expectedOutput: ['/home/rjdeamen/.local/bin/copilot']
+  - name: 'himalaya installed for rjdeamen'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'bash', '-lc', 'command -v himalaya']
+    expectedOutput: ['/home/rjdeamen/.local/bin/himalaya']
+  - name: 'Proton Drive CLI installed for rjdeamen'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'bash', '-lc', 'command -v proton-drive']
+    expectedOutput: ['/home/rjdeamen/.local/bin/proton-drive']
+  - name: 'Proton Pass CLI installed for rjdeamen'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'bash', '-lc', 'command -v pass-cli']
+    expectedOutput: ['/home/rjdeamen/.local/bin/pass-cli']
+  - name: 'PROTON_PASS_KEY_PROVIDER set in login shells for rjdeamen'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'bash', '-lc', 'printenv PROTON_PASS_KEY_PROVIDER']
+    expectedOutput: ['fs']
+  - name: 'rjdeamen has passwordless sudo'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'sudo', '-n', 'true']
+    exitCode: 0
+  - name: 'git prompt loaded in login shell for rjdeamen'
+    command: 'sudo'
+    args: ['-u', 'rjdeamen', 'bash', '-lc', 'type -t __git_ps1']
+    expectedOutput: ['function']
