@@ -14,8 +14,10 @@ DEAMEN_COLLECTIONS=${DEAMEN_COLLECTIONS:-deamen.ansible deamen.proton}
 source "$(dirname "$0")/fedora_vars.sh"
 IMAGE_TITLE=${IMAGE_TITLE:-fedora-codespace}
 IMAGE_NAME=${IMAGE_NAME:-${REGISTRY_URL}/${IMAGE_TITLE}-${ARCH}}
-# Non-root user the container runs as (AUTHORS is the image label, not a user)
-CONTAINER_USER=${CONTAINER_USER:-deamen}
+# Non-root users the container runs as, all configured the same way (AUTHORS is the image label,
+# not a user). The first one gets uid 1000 and owns the working directory
+CONTAINER_USERS=${CONTAINER_USERS:-deamen rjdeamen}
+read -r CONTAINER_USER _ <<< "${CONTAINER_USERS}"
 
 # Build on the locally built fedora-init image so systemd runs as PID 1 (it creates the
 # per-user /run directories the keyring needs). fedora-init is not published, so
@@ -30,58 +32,72 @@ add_packages $ctr ${ANSIBLE_PACKAGES}
 buildah run "$ctr" sh -c "echo 'export PATH=\$PATH:~/.local/bin' > /etc/profile.d/user_home_local_bin.sh"
 buildah run "$ctr" chmod 0644 /etc/profile.d/user_home_local_bin.sh
 
-# Create default user and allow passwordless sudo
-buildah run "$ctr" useradd -m "${CONTAINER_USER}"
-buildah run "$ctr" sh -c "echo '${CONTAINER_USER} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${CONTAINER_USER}"
-buildah run "$ctr" chmod 0440 /etc/sudoers.d/${CONTAINER_USER}
-
 # Install the published collections system-wide, then apply their playbooks to the container itself
 buildah run "$ctr" ansible-galaxy collection install -p /usr/share/ansible/collections ${DEAMEN_COLLECTIONS}
 ANSIBLE_PLAYBOOK=(ansible-playbook -i 'ansible-dev-container,' -c local -e ansible_python_interpreter=/usr/bin/python3)
-# Set up the full Ansible dev environment as the user (dev packages, git prompt, aliases, ~/Prj,
-# Copilot CLI, podman, Claude Code, linear-cli); system-wide tasks escalate through the passwordless sudo above.
-# The linear-cli skill is not installed here: it is added at runtime after dotclaude is cloned into ~/.claude (MMZ-15)
-buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false -e linear_cli_claude_code_skill=false \
-    deamen.ansible.configure_ansible_development_env
-# Install GPG and deploy gpg-agent.conf for the user. Never import a key here: the image is public,
-# so keys are imported at runtime by running the same playbook against the container
-buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    "${ANSIBLE_PLAYBOOK[@]}" -e config_gpg_user="${CONTAINER_USER}" -e config_gpg_import_secret_key=false \
-    -e config_gpg_import_public_key=false deamen.gpg.configure_gpg_for_user
-# Install himalaya into ~/.local/bin with an example config.toml. The playbook targets the implicit
-# localhost; set the real account and create the GPG password file at runtime by rerunning it with -e
-buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.general.install_himalaya
-# Install a stateless gnome-keyring Secret Service for the user: unlocked interactively with
-# keyring-unlock after logging in. The bus and the keyring live in /run/user/<uid> (tmpfs), created at
-# boot through /etc/tmpfiles.d, so nothing is persisted and no password is stored anywhere
-buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.general.configure_keyring
-# Install the Proton Drive CLI into ~/.local/bin and export PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file
-# from ~/.bashrc.d; sign in at runtime with "proton-drive auth login". keychain would work after
-# keyring-unlock, but the keyring is reset on every container start, so unsafe_file stays the default
-buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_drive_cli
-# Install the Proton Pass CLI into ~/.local/bin and export PROTON_PASS_KEY_PROVIDER=fs from ~/.bashrc.d,
-# as the container cannot reach the kernel keyring; sign in at runtime with "pass-cli login"
-buildah run --user "${CONTAINER_USER}" --env HOME="/home/${CONTAINER_USER}" --workingdir "/home/${CONTAINER_USER}" "$ctr" \
-    ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_pass_cli
+
+# Create a user and set up their environment. Everything here is per user, so each user in
+# CONTAINER_USERS gets the same configuration
+setup_user() {
+    local user="$1"
+
+    # Create the user and allow passwordless sudo
+    buildah run "$ctr" useradd -m "${user}"
+    buildah run "$ctr" sh -c "echo '${user} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${user}"
+    buildah run "$ctr" chmod 0440 /etc/sudoers.d/${user}
+
+    # Set up the full Ansible dev environment as the user (dev packages, git prompt, aliases, ~/Prj,
+    # Copilot CLI, podman, Claude Code, linear-cli); system-wide tasks escalate through the passwordless sudo above.
+    # The linear-cli skill is not installed here: it is added at runtime after dotclaude is cloned into ~/.claude (MMZ-15)
+    buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
+        "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false -e linear_cli_claude_code_skill=false \
+        deamen.ansible.configure_ansible_development_env
+    # Install GPG and deploy gpg-agent.conf for the user. Never import a key here: the image is public,
+    # so keys are imported at runtime by running the same playbook against the container
+    buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
+        "${ANSIBLE_PLAYBOOK[@]}" -e config_gpg_user="${user}" -e config_gpg_import_secret_key=false \
+        -e config_gpg_import_public_key=false deamen.gpg.configure_gpg_for_user
+    # Install himalaya into ~/.local/bin with an example config.toml. The playbook targets the implicit
+    # localhost; set the real account and create the GPG password file at runtime by rerunning it with -e
+    buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
+        ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.general.install_himalaya
+    # Install a stateless gnome-keyring Secret Service for the user: unlocked interactively with
+    # keyring-unlock after logging in. The bus and the keyring live in /run/user/<uid> (tmpfs), created at
+    # boot through /etc/tmpfiles.d, so nothing is persisted and no password is stored anywhere
+    buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
+        ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.general.configure_keyring
+    # The role writes /etc/tmpfiles.d/keyring.conf for one user only, so move it to a per-user file
+    # before the next user's run overwrites it
+    buildah run "$ctr" mv /etc/tmpfiles.d/keyring.conf "/etc/tmpfiles.d/keyring-${user}.conf"
+    # Install the Proton Drive CLI into ~/.local/bin and export PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file
+    # from ~/.bashrc.d; sign in at runtime with "proton-drive auth login". keychain would work after
+    # keyring-unlock, but the keyring is reset on every container start, so unsafe_file stays the default
+    buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
+        ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_drive_cli
+    # Install the Proton Pass CLI into ~/.local/bin and export PROTON_PASS_KEY_PROVIDER=fs from ~/.bashrc.d,
+    # as the container cannot reach the kernel keyring; sign in at runtime with "pass-cli login"
+    buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
+        ansible-playbook -e ansible_python_interpreter=/usr/bin/python3 deamen.proton.install_proton_pass_cli
+
+    CONTAINER_USER="${user}" install_pipx_packages $ctr ${ANSIBLE_PIP_PACKAGES}
+}
+
+for user in ${CONTAINER_USERS}; do
+    setup_user "${user}"
+done
 
 # Deploy the script that clones deamen/dotclaude into ~/.claude at runtime (MMZ-15). It is copied in
 # rather than cloned here, because it has to exist before the dotclaude repository can be cloned
 buildah copy --chmod=0755 "$ctr" "$(dirname "$0")/files/clone_dotclaude.sh" /usr/local/bin/clone-dotclaude
 
 # Set the working directory. The default user stays root because systemd (PID 1) must run as
-# root; open shells as the user with `podman exec -u ${CONTAINER_USER} ...`
+# root; open shells as a user with `podman exec -u ${CONTAINER_USER} ...`
 buildah config --workingdir "/home/${CONTAINER_USER}" "$ctr"
-
-install_pipx_packages $ctr ${ANSIBLE_PIP_PACKAGES}
 
 # Keep the fedora-init entrypoint (/sbin/init) and clear the inherited CMD so podman run does
 # not pass a command to init. Start the container without a command:
 #   podman run -d --name codespace <image>
-# then open shells with "podman exec -it -u deamen codespace bash -l" and run keyring-unlock
+# then open shells with "podman exec -it -u deamen codespace bash -l" (or -u rjdeamen) and run keyring-unlock
 buildah config --cmd '' "$ctr"
 
 commit_and_squash $ctr ${IMAGE_NAME}
