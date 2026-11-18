@@ -47,10 +47,11 @@ setup_user() {
     buildah run "$ctr" chmod 0440 /etc/sudoers.d/${user}
 
     # Set up the full Ansible dev environment as the user (dev packages, git prompt, aliases, ~/Prj,
-    # Copilot CLI, podman, Claude Code, linear-cli); system-wide tasks escalate through the passwordless sudo above.
-    # The linear-cli skill is not installed here: it is added at runtime after dotclaude is cloned into ~/.claude (MMZ-15)
+    # Copilot CLI, podman, Claude Code, linear-cli and its skill in ~/.claude/skills/linear-cli); system-wide tasks
+    # escalate through the passwordless sudo above. dotclaude does not track skills/linear-cli, so the skill survives
+    # the clone into ~/.claude at runtime (MMZ-15)
     buildah run --user "${user}" --env HOME="/home/${user}" --workingdir "/home/${user}" "$ctr" \
-        "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false -e linear_cli_claude_code_skill=false \
+        "${ANSIBLE_PLAYBOOK[@]}" -e install_molecule_via_pip=false \
         deamen.ansible.configure_ansible_development_env
     # Install GPG and deploy gpg-agent.conf for the user. Never import a key here: the image is public,
     # so keys are imported at runtime by running the same playbook against the container

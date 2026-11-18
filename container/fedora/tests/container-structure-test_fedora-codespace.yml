@@ -43,6 +43,9 @@ fileExistenceTests:
   - name: 'no linear-cli marketplace registered at build time (the MMZ-15 clone must not find it)'
     path: '/home/deamen/.claude/plugins/known_marketplaces.json'
     shouldExist: false
+  - name: 'npx-based linear-cli skill installer removed by deamen.ai.install_linear_cli'
+    path: '/usr/local/bin/install-linear-cli-skill'
+    shouldExist: false
   - name: 'Proton Drive CLI environment deployed by deamen.proton.install_proton_drive_cli'
     path: '/home/deamen/.bashrc.d/proton_drive_cli.sh'
     shouldExist: true
@@ -119,6 +122,12 @@ fileExistenceTests:
     shouldExist: false
 
 fileContentTests:
+  - name: 'linear-cli skill installed for deamen by deamen.ai.install_linear_cli'
+    path: '/home/deamen/.claude/skills/linear-cli/SKILL.md'
+    expectedContents: ['name: linear-cli']
+  - name: 'linear-cli skill installed for rjdeamen by deamen.ai.install_linear_cli'
+    path: '/home/rjdeamen/.claude/skills/linear-cli/SKILL.md'
+    expectedContents: ['name: linear-cli']
   - name: 'git prompt helper installed'
     path: '/home/deamen/.bashrc.d/load_git-prompt.sh'
     expectedContents: ['git-prompt']
@@ -197,11 +206,6 @@ commandTests:
     command: 'linear'
     args: ['--version']
     expectedOutput: ['linear [0-9]']
-  - name: 'linear-cli skill installer for other agents'
-    command: 'bash'
-    args: ['-lc', 'test -x /usr/local/bin/install-linear-cli-skill && echo ok']
-    # (?m): without it, Go's $ only matches at the very end, after the trailing newline
-    expectedOutput: ['(?m)^ok$']
   - name: 'gpg installed'
     command: 'gpg'
     args: ['--version']
